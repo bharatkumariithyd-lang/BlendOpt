@@ -1,0 +1,14 @@
+# Virtual environment (never commit it)
+.venv/
+
+# Python caches
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Real plant workbooks and run outputs stay local
+data/
+output/
+
+# Excel lock files created while a workbook is open
+~$*.xlsx
