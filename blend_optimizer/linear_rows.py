@@ -10,14 +10,19 @@ Every spec bound has the same shape: a blend value written as a fraction
 
 compared with a limit L, where
 
-    N_i  numerator: the summed numerator components of material i (wt %, dry)
+    N_i  numerator: the numerator expression evaluated for material i,
+         sum(factor x wt %) over its terms (wt %, dry). For "Al2O3+1.8895*Al"
+         that is Al2O3_i + 1.8895 * Al_i; plain terms have factor 1.
     g_i  denominator weight, which depends on the kind of row:
 
            composition, dry basis          g_i = 1
            composition, ignited basis      g_i = 1 - LOI_i/100
            composition, as-received basis  g_i = 1 / (1 - moisture_i/100)
-           ratio (any basis)               g_i = D_i, the summed denominator
-                                                 components of material i
+           ratio (any basis)               g_i = D_i, the denominator
+                                                 expression evaluated for
+                                                 material i
+
+The factors only change the numbers N_i and D_i; every row stays linear in x.
 
 For a composition row, g_i is the mass of material i "on the spec basis"
 per dry tonne: one dry tonne is (1 - LOI/100) t once ignited, and
@@ -42,9 +47,10 @@ but this one makes the .lp file read like the hand calculation:
 """
 
 from dataclasses import dataclass
+from typing import Sequence
 
 from blend_optimizer import config
-from blend_optimizer.data import BlendData, RawMaterial, SpecRow
+from blend_optimizer.data import BlendData, RawMaterial, SpecRow, Term
 
 MIN = "min"
 MAX = "max"
@@ -85,9 +91,13 @@ class LinearRow:
     limit_on_rhs: bool
 
 
-def component_sum(material: RawMaterial, components: tuple[str, ...]) -> float:
-    """Sum of the given components in one raw material, wt % dry basis."""
-    return sum(material.composition[component] for component in components)
+def expression_value(material: RawMaterial, terms: Sequence[Term]) -> float:
+    """Value of an expression for one raw material: sum(factor x wt %), dry basis.
+
+    E.g. for "Al2O3+1.8895*Al" and a material with Al2O3 60 %, Al 10 %:
+    60 + 1.8895 * 10 = 78.895. Plain terms (factor 1) give the plain sum.
+    """
+    return sum(term.factor * material.composition[term.component] for term in terms)
 
 
 def basis_factor(material: RawMaterial, spec_basis: str) -> float:
@@ -142,9 +152,10 @@ def build_linear_rows(data: BlendData) -> list[LinearRow]:
     materials = data.raw_materials
     rows: list[LinearRow] = []
     for spec in data.specs:
-        numerator = {name: component_sum(material, spec.numerator) for name, material in materials.items()}
+        numerator = {name: expression_value(material, spec.numerator) for name, material in materials.items()}
         if spec.is_ratio:
-            denominator = {name: component_sum(material, spec.denominator) for name, material in materials.items()}
+            denominator = {name: expression_value(material, spec.denominator)
+                           for name, material in materials.items()}
         else:
             denominator = {name: basis_factor(material, data.settings.spec_basis)
                            for name, material in materials.items()}

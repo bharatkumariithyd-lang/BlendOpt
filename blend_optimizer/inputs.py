@@ -20,6 +20,9 @@ be read as a chemical component. Component names themselves must match
 exactly, because "AL2O3" and "Al2O3" could be different things to the
 optimizer; close matches are suggested in the error message.
 
+Numerator/Denominator expressions (e.g. "Al2O3+1.8895*Al") are read by
+:func:`parse_expression` only.
+
 This module knows nothing about PuLP.
 """
 
@@ -41,6 +44,7 @@ from blend_optimizer.data import (
     Scenario,
     Settings,
     SpecRow,
+    Term,
     UsageLimit,
 )
 
@@ -49,29 +53,112 @@ from blend_optimizer.data import (
 # Public helpers (also used by tests and other modules)
 # ===========================================================================
 
-def parse_component_sum(text: str) -> tuple[str, ...]:
-    """Split a Numerator/Denominator cell such as ``"CaO+MgO"`` into component names.
+# A factor: digits with an optional decimal point, e.g. 2, 1.8895, .5 (no sign, no exponent)
+_NUMBER = re.compile(r"^(\d+(\.\d*)?|\.\d+)$")
+# A term that starts with a number glued to a name, e.g. "1.8895Al" -> ("1.8895", "Al")
+_NUMBER_THEN_NAME = re.compile(r"^(\d+(?:\.\d*)?|\.\d+)\s*(\S.*)$")
+
+
+def parse_expression(text: str, known_components: Iterable[str] | None = None) -> list[Term]:
+    """Read a Numerator/Denominator expression into (factor, component) terms.
+
+    This is the ONE place where an expression is read; everything else uses
+    the terms it returns. The syntax:
+
+    * terms joined with "+", e.g. ``CaO+MgO``;
+    * a term is a component (factor 1) or ``number*Component``, e.g.
+      ``Al2O3+1.8895*Al``; spaces around "+" and "*" are allowed;
+    * factors are plain positive numbers typed by the user. The tool knows
+      no chemistry.
+
+    Not allowed (each gives a clear message): an empty term ("++"), a factor
+    without "*" ("1.8895Al"), a missing factor or component ("*Al",
+    "1.8895*"), the factor after the component ("Al*1.8895"), a factor that
+    is not a number, a factor of 0, subtraction ("-" between terms, which
+    could make a ratio's denominator zero or negative), and the same
+    component twice.
+
+    A hyphen inside a component name ("Fe-total") is fine.
+
+    (A future shorthand such as "Al as Al2O3" would be turned into
+    "1.8895*Al" here, at the start, before anything else sees the text.)
 
     Args:
-        text: Cell text. Spaces around the names are ignored.
+        text: The cell text.
+        known_components: The component columns, if known. A term without
+            "*" that exactly matches one of them is that component, even if it
+            starts with a digit (a column "3CaO"). They also let "CaO-MgO" be
+            recognised as an attempted subtraction rather than an unknown name.
 
     Returns:
-        The component names, in the order written.
+        The terms, in the order written.
 
     Raises:
-        ValueError: If the text is empty, has an empty part (``"CaO++MgO"``)
-            or names the same component twice.
+        ValueError: If the expression is not valid; the message names the
+            expression and the term at fault.
     """
-    parts = [part.strip() for part in str(text).split(config.COMPONENT_SEPARATOR)]
-    if any(part == "" for part in parts):
-        raise ValueError(
-            f"'{text}' has an empty component name; "
-            f"write components joined with '{config.COMPONENT_SEPARATOR}', e.g. CaO+MgO"
-        )
-    duplicates = sorted({part for part in parts if parts.count(part) > 1})
+    text = str(text).strip()
+    if not text:
+        raise ValueError("the expression is empty")
+    known = set(known_components) if known_components is not None else None
+    subtraction = (f"'{text}': subtraction ('-') is not supported; write every term with a positive "
+                   f"factor joined by '{config.COMPONENT_SEPARATOR}'")
+
+    terms: list[Term] = []
+    for raw_term in text.split(config.COMPONENT_SEPARATOR):
+        term = raw_term.strip()
+        if not term:
+            raise ValueError(f"'{text}' has an empty component name: check for "
+                             f"'{config.COMPONENT_SEPARATOR}{config.COMPONENT_SEPARATOR}', or a "
+                             f"'{config.COMPONENT_SEPARATOR}' at the start or end")
+        if known is not None and term in known:
+            terms.append(Term(1.0, term, term))   # an exact column name always wins
+            continue
+        # "-" as an operator: at the start, with a space next to it, or joining known names
+        if term.startswith("-") or re.search(r"\s-|-\s", term):
+            raise ValueError(subtraction)
+        if known is not None and "-" in term and all(part.strip() in known for part in term.split("-")):
+            raise ValueError(subtraction)
+
+        if config.FACTOR_SEPARATOR not in term:
+            glued = _NUMBER_THEN_NAME.match(term)
+            if glued:
+                number, name = glued.groups()
+                raise ValueError(f"in '{text}', the term '{term}' starts with a number; put "
+                                 f"'{config.FACTOR_SEPARATOR}' between the factor and the component "
+                                 f"(did you mean {number}{config.FACTOR_SEPARATOR}{name}?)")
+            terms.append(Term(1.0, term, term))
+            continue
+
+        parts = [part.strip() for part in term.split(config.FACTOR_SEPARATOR)]
+        if len(parts) != 2:
+            raise ValueError(f"in '{text}', the term '{term}' has more than one '{config.FACTOR_SEPARATOR}'; "
+                             f"write one factor per component, e.g. 1.8895{config.FACTOR_SEPARATOR}Al")
+        factor_text, component = parts
+        if not factor_text:
+            raise ValueError(f"in '{text}', the term '{term}' has no factor before "
+                             f"'{config.FACTOR_SEPARATOR}', e.g. 1.8895{config.FACTOR_SEPARATOR}Al")
+        if not component:
+            raise ValueError(f"in '{text}', the term '{term}' has no component after '{config.FACTOR_SEPARATOR}'")
+        if "-" in factor_text:
+            raise ValueError(subtraction)
+        if not _NUMBER.match(factor_text):
+            if _NUMBER.match(component):
+                raise ValueError(f"in '{text}', the term '{term}' has the factor after the component; "
+                                 f"write it first: {component}{config.FACTOR_SEPARATOR}{factor_text}")
+            hint = " (use a decimal point, e.g. 1.8895)" if "," in factor_text else ""
+            raise ValueError(f"in '{text}', the factor '{factor_text}' is not a number{hint}")
+        factor = float(factor_text)
+        if factor == 0:
+            raise ValueError(f"in '{text}', the factor of {component} is 0; it must be greater than 0")
+        terms.append(Term(factor, component, f"{factor_text}{config.FACTOR_SEPARATOR}{component}"))
+
+    names = [term.component for term in terms]
+    duplicates = sorted({name for name in names if names.count(name) > 1})
     if duplicates:
-        raise ValueError(f"'{text}' lists {', '.join(duplicates)} more than once")
-    return tuple(parts)
+        raise ValueError(f"'{text}' lists {', '.join(duplicates)} more than once; "
+                         f"write each component once, with the combined factor")
+    return terms
 
 
 def suggest_close_match(name: str, known: Iterable[str]) -> str | None:
@@ -551,17 +638,17 @@ def _parse_choice(value: object, choices: tuple[str, ...], where: str, issues: _
     return None
 
 
-def _parse_components(
+def _parse_expression_cell(
     value: object, where: str, known: list[str] | None, issues: _Issues, required: bool
-) -> tuple[str, ...] | None:
-    """Read a Numerator/Denominator cell and check its components exist.
+) -> tuple[Term, ...] | None:
+    """Read a Numerator/Denominator cell (via :func:`parse_expression`) and check its components exist.
 
     Args:
         known: Component columns of RawMaterials, or None to skip the check
             (when RawMaterials itself could not be read).
 
     Returns:
-        The component names (``()`` for an optional blank cell), or None if invalid.
+        The terms (``()`` for an optional blank cell), or None if invalid.
     """
     if _is_blank(value):
         if required:
@@ -569,15 +656,15 @@ def _parse_components(
             return None
         return ()
     try:
-        names = parse_component_sum(str(value))
+        terms = parse_expression(str(value), known)
     except ValueError as exc:
         issues.error(f"{where}: {exc}.")
         return None
 
     if known is None:
-        return names
+        return tuple(terms)
     ok = True
-    for name in names:
+    for name in (term.component for term in terms):
         if name in known:
             continue
         ok = False
@@ -592,7 +679,7 @@ def _parse_components(
                 f"{where}: component '{name}' is not a column in RawMaterials. "
                 f"Components available: {', '.join(known)}."
             )
-    return names if ok else None
+    return tuple(terms) if ok else None
 
 
 # ===========================================================================
@@ -726,10 +813,11 @@ def _parse_specs(table: _Table, components: list[str] | None, issues: _Issues) -
         seen[name.lower()] = row.excel_row
         errors_before = len(issues.errors)
 
-        numerator = _parse_components(row.get(config.COL_NUMERATOR), f"{where}, {config.COL_NUMERATOR}",
-                                      components, issues, required=True)
-        denominator = _parse_components(row.get(config.COL_DENOMINATOR), f"{where}, {config.COL_DENOMINATOR}",
-                                        components, issues, required=False)
+        numerator = _parse_expression_cell(row.get(config.COL_NUMERATOR), f"{where}, {config.COL_NUMERATOR}",
+                                           components, issues, required=True)
+        denominator = _parse_expression_cell(row.get(config.COL_DENOMINATOR),
+                                             f"{where}, {config.COL_DENOMINATOR}", components, issues,
+                                             required=False)
         min_value = _parse_number(row.get(config.COL_MIN), f"{where}, {config.COL_MIN}", issues)
         max_value = _parse_number(row.get(config.COL_MAX), f"{where}, {config.COL_MAX}", issues)
         margin = _parse_number(row.get(config.COL_MARGIN), f"{where}, {config.COL_MARGIN}", issues, default=0.0)
@@ -775,7 +863,12 @@ def spec_limit_problems(spec: SpecRow) -> list[str]:
         )
     if spec.max_target is not None and spec.max_target < 0:
         problems.append(f"Max - margin = {spec.max_target:g} is negative. Reduce the margin.")
-    if not spec.is_ratio and spec.min_target is not None and spec.min_target > 100:
+    # A plain composition can never exceed 100 %. With a factor above 1 it can
+    # (Al2O3+1.8895*Al counts metallic Al as more mass of Al2O3), so this quick
+    # check only applies to plain expressions; impossible limits with factors
+    # are found by the diagnosis pre-check instead.
+    plain = all(term.factor <= 1 for term in spec.numerator)
+    if not spec.is_ratio and plain and spec.min_target is not None and spec.min_target > 100:
         problems.append(f"Min + margin = {spec.min_target:g} % is above 100 % and can never be met.")
     return problems
 

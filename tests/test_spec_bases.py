@@ -46,10 +46,14 @@ def _with_spec(example, name, **cells):
 def independent_value(data, fractions, spec):
     """Blend value of a spec, computed straight from the definitions."""
     rm = data.raw_materials
-    top = sum(sum(rm[n].composition[c] for c in spec.numerator) * x for n, x in fractions.items())
+
+    def value(name, terms):  # sum(factor x wt %) for one material
+        return sum(term.factor * rm[name].composition[term.component] for term in terms)
+
+    top = sum(value(n, spec.numerator) * x for n, x in fractions.items())
     basis = data.settings.spec_basis
     if spec.is_ratio:        # mass of denominator components (basis cancels)
-        bottom = sum(sum(rm[n].composition[c] for c in spec.denominator) * x for n, x in fractions.items())
+        bottom = sum(value(n, spec.denominator) * x for n, x in fractions.items())
     elif basis == "dry":     # dry blend mass
         bottom = sum(fractions.values())
     elif basis == "ignited":  # blend mass after ignition

@@ -29,7 +29,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 from pulp import HiGHS, LpSolver, LpSolveStats, LpSolveStatus
 
 from blend_optimizer import config
-from blend_optimizer.data import BlendData, price_from_dry_basis
+from blend_optimizer.data import BlendData, Term, price_from_dry_basis
 from blend_optimizer.linear_rows import (
     MIN,
     LinearRow,
@@ -670,7 +670,8 @@ def composition_decimals(data: BlendData) -> list[int | None]:
     """
     decimals: list[int | None] = []
     for component in data.components:
-        own_specs = [spec for spec in data.specs if not spec.is_ratio and spec.numerator == (component,)]
+        # "On its own" = the whole numerator is that one component with factor 1
+        own_specs = [spec for spec in data.specs if not spec.is_ratio and spec.numerator == (Term(1.0, component),)]
         decimals.append(max(limit_decimals([spec.min_value, spec.max_value, spec.margin]) for spec in own_specs)
                         if own_specs else None)
     return decimals + [None, None, None]  # Sum of components, LOI, Moisture

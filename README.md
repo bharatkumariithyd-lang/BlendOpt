@@ -89,8 +89,8 @@ maintains the tool to switch it over (section 6).
 | Column | What to enter |
 |---|---|
 | `Name` | A unique label. In the report the limits are called `<Name>_min` and `<Name>_max`. |
-| `Numerator` | The component limited, or a sum of components joined with `+`, e.g. `CaO+MgO` |
-| `Denominator` | Leave blank for a composition limit. Fill in for a **ratio**, e.g. Numerator `CaO`, Denominator `SiO2` for basicity. |
+| `Numerator` | What is limited: a component, or several joined with `+`, each optionally with a conversion factor (see below), e.g. `CaO+MgO` or `Al2O3+1.8895*Al` |
+| `Denominator` | Leave blank for a composition limit. Fill in for a **ratio**, e.g. Numerator `CaO`, Denominator `SiO2` for basicity. Same syntax as Numerator. |
 | `Min`, `Max` | The customer's limits. Leave one blank if there is no limit on that side; at least one is needed. |
 | `Margin` | Optional safety margin, in the same unit as the limit. The optimizer aims inside the customer limits: Min + margin and Max − margin. Blank = 0. |
 
@@ -103,6 +103,39 @@ Examples:
 | CaO+MgO | CaO+MgO | | 55 | | | CaO plus MgO at least 55 % |
 | Basicity | CaO | SiO2 | 8 | | | CaO / SiO2 at least 8 |
 | P | P | | | 0.03 | | P at most 0.03 % |
+| Total Al2O3 | Al2O3+1.8895*Al | | 75 | | | Al2O3, with metallic Al counted as Al2O3, at least 75 % |
+
+**Counting one component as another (conversion factors).** Some customers count a component in
+another form. Metallic Al, for example, oxidises to Al2O3 in the slag, so it is counted in Al2O3 by
+stoichiometry. Write the factor in front of the component with `*`:
+
+```
+Al2O3+1.8895*Al
+```
+
+This means "Al2O3 % + 1.8895 × Al %" for every raw material. 1.8895 is the mass of Al2O3 formed per unit
+mass of Al: 101.96 / (2 × 26.98), the molar mass of Al2O3 divided by its two atoms of Al. Spaces around `+`
+and `*` are fine; every term needs a positive factor (or none, meaning 1), and `-` is not allowed. The
+factor works everywhere a plain component does: on every spec basis, in ratios (also in the Denominator),
+with margins, in WhatIf changes, and in the diagnosis. The report shows the expression as you typed it.
+The tool knows no chemistry: the factor is simply the number you type.
+
+Common factors (molar mass of what it is counted as, per atom of the shared element, divided by the molar
+mass of what was analysed):
+
+| Analysed as | Counted as | Factor | Derivation |
+|---|---|---|---|
+| Al | Al2O3 | 1.8895 | 101.96 / (2 × 26.98) |
+| Mg | MgO | 1.6583 | 40.304 / 24.305 |
+| Ca | CaO | 1.3992 | 56.077 / 40.078 |
+| Si | SiO2 | 2.1393 | 60.084 / 28.086 |
+| CaC2 | CaO | 0.8748 | 56.077 / 64.100 |
+| FeO | Fe2O3 | 1.1113 | 159.687 / (2 × 71.844) |
+| CaF2 | F | 0.4867 | (2 × 18.998) / 78.075 |
+
+So `CaO+1.3992*Ca+0.8748*CaC2` would count metallic Ca and carbide as CaO. If you used a helper column in
+RawMaterials for this before (e.g. a column `Al_as_Al2O3` = 1.8895 × Al), it is no longer needed:
+put the factor in the Specs sheet instead and delete the column.
 
 ### Sheet `Settings`: two columns, `Key` and `Value`
 

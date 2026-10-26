@@ -113,8 +113,10 @@ COL_MAX = "Max"
 COL_MARGIN = "Margin"
 SPEC_COLUMNS = (COL_NAME, COL_NUMERATOR, COL_DENOMINATOR, COL_MIN, COL_MAX, COL_MARGIN)
 SPEC_REQUIRED_COLUMNS = (COL_NAME, COL_NUMERATOR, COL_MIN, COL_MAX)
-# Joins components in Numerator/Denominator, e.g. "CaO+MgO"
+# Numerator/Denominator expressions: terms joined with "+"; a term is a
+# component, or a factor and a component joined with "*", e.g. "Al2O3+1.8895*Al"
 COMPONENT_SEPARATOR = "+"
+FACTOR_SEPARATOR = "*"
 
 # UsageLimits (optional sheet): same usage columns as RawMaterials
 USAGE_LIMIT_COLUMNS = (COL_NAME, COL_MIN_USE, COL_MAX_USE)

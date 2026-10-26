@@ -105,28 +105,67 @@ class RawMaterial:
 
 
 @dataclass(frozen=True)
+class Term:
+    """One term of a Numerator or Denominator expression: factor x component.
+
+    "Al2O3+1.8895*Al" has two terms: (1, Al2O3) and (1.8895, Al). The
+    factor is a number typed by the user; the tool knows no chemistry.
+
+    Attributes:
+        factor: Multiplies the component's wt % (1 for a plain component).
+        component: A component column of RawMaterials.
+        written: The term as typed (spaces removed), shown in reports.
+            Not part of equality: "1*Al" and "Al" are the same term.
+    """
+
+    factor: float
+    component: str
+    written: str = field(default="", compare=False)
+
+    @property
+    def label(self) -> str:
+        """The term as shown in reports: as typed, or built from factor and component."""
+        if self.written:
+            return self.written
+        if self.factor == 1:
+            return self.component
+        return f"{self.factor:g}{config.FACTOR_SEPARATOR}{self.component}"
+
+
+@dataclass(frozen=True)
 class SpecRow:
     """One row of the Specs sheet.
 
-    A row with an empty ``denominator`` is a composition limit on the sum of
-    the ``numerator`` components. A row with a denominator is a ratio, e.g.
-    numerator ("CaO",) and denominator ("SiO2",) for basicity.
+    A row with an empty ``denominator`` is a composition limit on the
+    numerator expression (a sum of factor x component terms). A row with a
+    denominator is a ratio, e.g. numerator (CaO) and denominator (SiO2) for
+    basicity.
 
     Attributes:
         name: Unique label; constraints are named ``<name>_min`` / ``<name>_max``.
-        numerator: Component names summed in the numerator.
-        denominator: Component names summed in the denominator; ``()`` if none.
+        numerator: Terms of the numerator expression.
+        denominator: Terms of the denominator expression; ``()`` if none.
         min_value: Customer minimum, or None for no minimum.
         max_value: Customer maximum, or None for no maximum.
         margin: Safety margin, same unit as the limits, applied inward.
     """
 
     name: str
-    numerator: tuple[str, ...]
-    denominator: tuple[str, ...] = ()
+    numerator: tuple[Term, ...]
+    denominator: tuple[Term, ...] = ()
     min_value: float | None = None
     max_value: float | None = None
     margin: float = 0.0
+
+    def __post_init__(self) -> None:
+        # Plain component names are accepted too and mean factor 1, which is
+        # handy in code and tests: SpecRow("CaO", ("CaO",), ...). They are
+        # turned into Terms here, so everything else only ever sees Terms.
+        # (The dataclass is frozen, so the converted value is set this way, once.)
+        for side in ("numerator", "denominator"):
+            terms = tuple(item if isinstance(item, Term) else Term(1.0, str(item), str(item))
+                          for item in getattr(self, side))
+            object.__setattr__(self, side, terms)
 
     @property
     def is_ratio(self) -> bool:
@@ -145,10 +184,10 @@ class SpecRow:
 
     @property
     def expression(self) -> str:
-        """Readable form of what is limited, e.g. ``"CaO+MgO"`` or ``"(CaO+MgO) / SiO2"``."""
-        def joined(names: tuple[str, ...], brackets: bool) -> str:
-            text = config.COMPONENT_SEPARATOR.join(names)
-            return f"({text})" if brackets and len(names) > 1 else text
+        """What is limited, as typed: e.g. ``"Al2O3+1.8895*Al"`` or ``"(CaO+MgO) / SiO2"``."""
+        def joined(terms: tuple[Term, ...], brackets: bool) -> str:
+            text = config.COMPONENT_SEPARATOR.join(term.label for term in terms)
+            return f"({text})" if brackets and len(terms) > 1 else text
 
         if not self.is_ratio:
             return joined(self.numerator, brackets=False)

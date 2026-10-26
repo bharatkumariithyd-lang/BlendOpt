@@ -27,7 +27,7 @@ import pandas as pd
 
 from blend_optimizer import config
 from blend_optimizer import solve_and_report as sr
-from blend_optimizer.data import BlendData
+from blend_optimizer.data import BlendData, Term
 from blend_optimizer.linear_rows import MIN, LinearRow, achieved_value, build_linear_rows, linearise
 from blend_optimizer.solve_and_report import SolveResult
 
@@ -108,8 +108,9 @@ def _condition(row: LinearRow, target: float | None = None) -> str:
     return f"{row.spec.expression} {sign} {_value(row, row.limit if target is None else target)}"
 
 
-def _components_text(components: tuple[str, ...]) -> str:
-    return " or ".join(components)
+def _components_text(terms: tuple[Term, ...]) -> str:
+    """The components of an expression, e.g. 'Al2O3 or Al' for Al2O3+1.8895*Al."""
+    return " or ".join(term.component for term in terms)
 
 
 def _usage_limit_source(data: BlendData, name: str, side: str) -> str:

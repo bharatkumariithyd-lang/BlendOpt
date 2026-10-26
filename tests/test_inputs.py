@@ -15,11 +15,12 @@ from blend_optimizer.data import (
     price_from_dry_basis,
     price_to_dry_basis,
 )
+from blend_optimizer.data import Term
 from blend_optimizer.inputs import (
     analysis_to_dry_basis,
     analysis_total_warning,
     load_inputs,
-    parse_component_sum,
+    parse_expression,
     suggest_close_match,
 )
 
@@ -163,7 +164,7 @@ def test_component_sum_in_numerator(write_example):
     extra = examples.spec_table([("CaO+MgO", "CaO + MgO", None, None, 60, None)])
     example = replace(slag(), specs=pd.concat([slag().specs, extra], ignore_index=True))
     data = load_inputs(write_example(example))
-    assert data.specs[-1].numerator == ("CaO", "MgO")
+    assert data.specs[-1].numerator == (Term(1.0, "CaO"), Term(1.0, "MgO"))  # plain sum: factor 1 each
 
 
 def test_lenient_header_sheet_and_value_matching(write_example, tmp_path):
@@ -453,12 +454,12 @@ def test_unknown_lab_convention_rejected(write_example):
 # Small helpers
 # ===========================================================================
 
-def test_parse_component_sum():
-    assert parse_component_sum("CaO") == ("CaO",)
-    assert parse_component_sum(" CaO + MgO ") == ("CaO", "MgO")
+def test_parse_expression():
+    assert parse_expression("CaO") == [Term(1.0, "CaO")]
+    assert parse_expression(" CaO + MgO ") == [Term(1.0, "CaO"), Term(1.0, "MgO")]
     for bad in ("", "CaO+", "+CaO", "CaO++MgO", "CaO+CaO"):
         with pytest.raises(ValueError):
-            parse_component_sum(bad)
+            parse_expression(bad)
 
 
 def test_suggest_close_match():

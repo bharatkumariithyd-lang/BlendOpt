@@ -69,10 +69,14 @@ def _readme_rows() -> list[tuple[str, str]]:
         ("", ""),
         (f"Sheet {config.SHEET_SPECS}", "One row per limit."),
         (config.COL_NAME, "Unique label. The constraints are named <Name>_min and <Name>_max in the report."),
-        (config.COL_NUMERATOR, f"A component, or a sum of components joined with "
-                               f"'{config.COMPONENT_SEPARATOR}' (e.g. CaO{config.COMPONENT_SEPARATOR}MgO). "
-                               f"Names must match the {config.SHEET_RAW_MATERIALS} headers exactly."),
-        (config.COL_DENOMINATOR, "Blank for a composition limit. Filled in (component or sum), the row "
+        (config.COL_NUMERATOR, f"A component, or components joined with '{config.COMPONENT_SEPARATOR}' "
+                               f"(e.g. CaO{config.COMPONENT_SEPARATOR}MgO). A component may be counted as another "
+                               f"by a factor written before it with '{config.FACTOR_SEPARATOR}', e.g. "
+                               f"Al2O3{config.COMPONENT_SEPARATOR}1.8895{config.FACTOR_SEPARATOR}Al counts "
+                               f"metallic Al as Al2O3 (1.8895 = 101.96 / (2 x 26.98)). Factors are numbers you "
+                               f"type; '-' is not allowed. Names must match the {config.SHEET_RAW_MATERIALS} "
+                               f"headers exactly."),
+        (config.COL_DENOMINATOR, "Blank for a composition limit. Filled in (same syntax as Numerator), the row "
                                  "limits the ratio Numerator / Denominator."),
         (f"{config.COL_MIN}, {config.COL_MAX}", "The customer limits. Blank = no limit; at least one is needed."),
         (config.COL_MARGIN, "Safety margin in the same unit as Min/Max, applied inward "
