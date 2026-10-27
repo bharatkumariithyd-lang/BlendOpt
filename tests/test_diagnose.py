@@ -7,11 +7,18 @@ import pytest
 
 from blend_optimizer import config, examples
 from blend_optimizer import solve_and_report as sr
-from blend_optimizer.diagnose import best_mix, best_value_alone, conflict_set, precheck, usage_bounds
+from blend_optimizer.diagnose import Conflict, best_mix, best_value_alone, conflict_set, precheck, usage_bounds
 from blend_optimizer.inputs import load_inputs
 from blend_optimizer.linear_rows import build_linear_rows, violation_scale
 from blend_optimizer.model import build_model
-from blend_optimizer.pipeline import best_achievable, diagnose_infeasible, optimise
+from blend_optimizer.pipeline import (
+    _with_target,
+    best_achievable,
+    diagnose_infeasible,
+    minimal_conflict,
+    optimise,
+    solve_blend,
+)
 
 
 def _load(write_example, example, file_name="product.xlsx"):
@@ -184,6 +191,53 @@ def test_conflict_where_the_others_also_conflict(write_example):
     assert [f.row.name for f in precheck(data)] == ["SiO2_max"]
     cao = next(row for row in build_linear_rows(data) if row.name == "CaO_min")
     assert best_achievable(data, cao) is None  # even without CaO_min, SiO2 <= 1 cannot be met
+    # The minimal set is the one problem that stands alone; the other conflict (CaO with Al2O3)
+    # is still there without it, which the message says
+    diagnosis = diagnose_infeasible(data)
+    assert diagnosis.conflict.spec_rows == ["SiO2_max"]
+    assert ("SiO2_max (SiO2 <= 1.00 %): even without this limit, the other limits cannot all be met."
+            in _text(diagnosis))
+
+
+# ===========================================================================
+# The conflict set is minimal
+# ===========================================================================
+
+def test_conflict_set_keeps_only_the_limits_needed(write_example):
+    # Test 1 with the SiO2 limit of 6 typed under Min instead of Max (guide, section 8.4)
+    data = _load(write_example, _with_spec(examples.hand_worked_example(), "SiO2", Min=6, Max=None))
+    elastic = sr.solve(build_model(data, elastic=True))
+    assert conflict_set(data, elastic).spec_rows == ["CaO_min", "Al2O3_min", "SiO2_min"]  # elastic model alone
+
+    diagnosis = diagnose_infeasible(data)
+    assert diagnosis.conflict.spec_rows == ["CaO_min", "SiO2_min"]   # Al2O3_min is not needed: dropped
+    text = _text(diagnosis)
+    assert "these limits cannot all be met together: CaO_min, SiO2_min." in text
+    assert "Al2O3_min" not in text and "even without this limit" not in text
+    # The best achievable figures of the limits that remain are kept (all other limits held)
+    assert ("CaO_min (CaO >= 50.00 %): the highest CaO achievable while SiO2 >= 6.00 % "
+            "and all other limits are held is 32.00 %.") in text
+    assert ("SiO2_min (SiO2 >= 6.00 %): the highest SiO2 achievable while CaO >= 50.00 % "
+            "and all other limits are held is 4.68 %.") in text
+    assert diagnosis.table["Limit"].tolist() == ["CaO_min", "SiO2_min"]
+
+    # Every limit kept is needed: without it alone, a blend exists
+    rows = {row.name: row for row in build_linear_rows(data)}
+    for name in diagnosis.conflict.spec_rows:
+        assert solve_blend(_with_target(data, rows[name], 0.0)).is_optimal, name
+
+
+def test_minimal_conflict_drops_spec_and_usage_limits_not_needed(write_example):
+    data = _load(write_example, examples.synthetic_slag_example(ban_fluorspar=True))
+    padded = Conflict(["CaF2_min", "CaO_min"], [("Fluorspar", "max", 0.0), ("Lime fines", "max", 20.0)])
+    reduced = minimal_conflict(data, padded)
+    assert reduced.spec_rows == ["CaF2_min"]
+    assert reduced.usage_limits == [("Fluorspar", "max", 0.0)]
+
+
+def test_minimal_conflict_of_nothing_is_nothing(write_example):
+    data = _load(write_example, examples.synthetic_slag_example(ban_fluorspar=True))
+    assert minimal_conflict(data, Conflict()) == Conflict()
 
 
 # ===========================================================================

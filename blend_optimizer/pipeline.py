@@ -8,8 +8,9 @@ This is what ``run.py`` calls, and the easiest entry point from a notebook::
 
 When the problem is infeasible, :func:`diagnose_infeasible` runs
 automatically: pre-checks (``diagnose``), the elastic model (``model`` +
-``solve_and_report``), and a search for the best achievable value of each
-conflicting limit (here, by re-solving).
+``solve_and_report``), the reduction of the conflicting limits to those
+really needed, and a search for the best achievable value of each of them
+(both here, by re-solving).
 """
 
 from dataclasses import dataclass, replace
@@ -17,9 +18,9 @@ from pathlib import Path
 
 import pandas as pd
 
-from blend_optimizer.data import BlendData
+from blend_optimizer.data import BlendData, UsageLimit
 from blend_optimizer.diagnose import Conflict, Diagnosis, build_diagnosis, conflict_set, format_diagnosis, precheck
-from blend_optimizer.linear_rows import MIN, LinearRow
+from blend_optimizer.linear_rows import MIN, LinearRow, build_linear_rows
 from blend_optimizer.model import build_model
 from blend_optimizer.solve_and_report import (
     Section,
@@ -118,12 +119,72 @@ def best_achievable(data: BlendData, row: LinearRow, tolerance: float = 1e-6) ->
     return feasible
 
 
+def _without_usage_limit(data: BlendData, material: str, side: str) -> BlendData:
+    """Copy of ``data`` with one usage limit lifted: Max back to 100 %, or Min back to 0 %.
+
+    Both the plant-wide limit and the product limit are lifted, so the
+    effective limit on that side is gone.
+    """
+    def lifted(limit: UsageLimit) -> UsageLimit:
+        return UsageLimit(limit.min_pct, 100.0) if side == "max" else UsageLimit(0.0, limit.max_pct)
+
+    raw = dict(data.raw_materials)
+    raw[material] = replace(raw[material], plant_limit=lifted(raw[material].plant_limit))
+    product_limits = dict(data.product_limits)
+    if material in product_limits:
+        product_limits[material] = lifted(product_limits[material])
+    return replace(data, raw_materials=raw, product_limits=product_limits)
+
+
+def minimal_conflict(data: BlendData, conflict: Conflict) -> Conflict:
+    """Keep only the limits the conflict really needs.
+
+    The elastic model can name limits that push against the answer without
+    being part of the conflict. Each limit in the set is tested in turn by
+    removing it (a spec bound made unrestrictive, a usage limit lifted): if
+    the problem is still infeasible without it, it is not needed and is
+    dropped for good. Every limit that is kept is one whose removal makes a
+    blend possible. (This is the standard "deletion filter".)
+
+    Args:
+        data: The infeasible input data.
+        conflict: From ``diagnose.conflict_set``.
+
+    Returns:
+        The reduced set. If dropping went wrong (nothing would be left), the
+        original set is returned.
+    """
+    rows = {row.name: row for row in build_linear_rows(data)}
+    trial = data                         # the data with every limit dropped so far removed
+    kept_rows: list[str] = []
+    kept_usage: list[tuple[str, str, float]] = []
+    for name in conflict.spec_rows:
+        row = rows[name]
+        loose = 0.0 if row.bound == MIN else _LOOSE_MAX    # a target that restricts nothing
+        candidate = _with_target(trial, row, loose)
+        if solve_blend(candidate).is_optimal:
+            kept_rows.append(name)       # needed: without it a blend exists
+        else:
+            trial = candidate            # not needed: drop it for good
+    for usage in conflict.usage_limits:
+        material, side, _ = usage
+        candidate = _without_usage_limit(trial, material, side)
+        if solve_blend(candidate).is_optimal:
+            kept_usage.append(usage)
+        else:
+            trial = candidate
+    if not kept_rows and not kept_usage:
+        return conflict
+    return Conflict(kept_rows, kept_usage)
+
+
 def diagnose_infeasible(data: BlendData, lp_path: str | Path | None = None) -> Diagnosis:
     """Explain why no blend meets the limits.
 
     1. Pre-checks: each limit on its own (``diagnose.precheck``).
-    2. Elastic model: which limits conflict (``diagnose.conflict_set``).
-    3. For each conflicting spec limit: the best value achievable while all
+    2. Elastic model: which limits conflict (``diagnose.conflict_set``),
+       reduced to the limits really needed (:func:`minimal_conflict`).
+    3. For each remaining spec limit: the best value achievable while all
        other limits are held (:func:`best_achievable`).
 
     Args:
@@ -133,6 +194,7 @@ def diagnose_infeasible(data: BlendData, lp_path: str | Path | None = None) -> D
     findings = precheck(data)
     elastic = solve(build_model(data, elastic=True), lp_path=lp_path)
     conflict = conflict_set(data, elastic) if elastic.is_optimal else Conflict()
+    conflict = minimal_conflict(data, conflict)
     achievable = {name: best_achievable(data, elastic.rows[name]) for name in conflict.spec_rows}
     return build_diagnosis(data, findings, elastic, conflict, achievable)
 

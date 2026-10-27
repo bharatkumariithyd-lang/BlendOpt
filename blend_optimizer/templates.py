@@ -51,7 +51,10 @@ def _readme_rows() -> list[tuple[str, str]]:
         ("General rules", ""),
         ("Headers", "Keep the column headers in row 1 and do not rename the fixed columns. "
                     "Blank rows are ignored."),
-        ("Numbers", "Type plain numbers (no units, no '<0.01'). A blank component cell means 0."),
+        ("Numbers", "Type plain numbers (no units, no '<0.01')."),
+        ("Blank or 0", "In a component column, blank = not analysed, 0 = analysed, none present. Both count "
+                       "as 0, but a blank in a component that a spec uses gives a warning: type 0 if it is "
+                       "genuinely absent."),
         ("Analyses", convention_text + " (Set by LAB_ANALYSIS_CONVENTION in config.py.)"),
         ("", ""),
         (f"Sheet {config.SHEET_RAW_MATERIALS}", ""),

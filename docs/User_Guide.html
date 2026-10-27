@@ -1,0 +1,2114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Least-cost blend optimizer: User Guide</title>
+<style>
+:root { --text: #1f2328; --muted: #57606a; --line: #d0d7de; --head: #f3f5f8; --code: #f6f8fa; --link: #0b5cad; }
+* { box-sizing: border-box; }
+body { margin: 0; background: #ffffff; color: var(--text);
+       font: 16px/1.55 "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif; }
+main { max-width: 980px; margin: 0 auto; padding: 32px 20px 64px; }
+h1 { font-size: 2rem; margin: 0 0 1rem; }
+h2 { font-size: 1.5rem; margin: 2.5rem 0 0.8rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--line); }
+h3 { font-size: 1.2rem; margin: 1.8rem 0 0.6rem; }
+h4 { font-size: 1rem; margin: 1.4rem 0 0.5rem; }
+p, ul, ol { margin: 0.6rem 0; }
+li { margin: 0.2rem 0; }
+li > ul, li > ol { margin: 0.2rem 0; }
+a { color: var(--link); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code { font-family: Consolas, "Cascadia Mono", Menlo, monospace; font-size: 0.9em;
+       background: var(--code); padding: 0.1em 0.3em; border-radius: 4px; }
+pre { background: var(--code); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px;
+      overflow-x: auto; line-height: 1.4; }
+pre code { background: none; padding: 0; font-size: 0.85em; white-space: pre; }
+.table-wrap { overflow-x: auto; margin: 0.8rem 0; }
+table { border-collapse: collapse; font-size: 0.92em; }
+th, td { border: 1px solid var(--line); padding: 5px 9px; text-align: left; vertical-align: top; }
+th { background: var(--head); font-weight: 600; }
+tbody tr:nth-child(even) td { background: #fafbfc; }
+hr { border: none; border-top: 1px solid var(--line); margin: 2rem 0; }
+.checkbox { font-family: "Segoe UI Symbol", sans-serif; margin-right: 0.3em; }
+footer { color: var(--muted); font-size: 0.85em; margin-top: 3rem; }
+
+@media (max-width: 640px) {
+  main { padding: 20px 16px 48px; }
+  body { font-size: 15px; }
+}
+
+@media print {
+  @page { size: A4; margin: 16mm 14mm; }
+  body { font-size: 10.5pt; }
+  main { max-width: none; padding: 0; }
+  h2 { break-before: page; }
+  h1 + h2, hr + h2 { break-before: auto; }
+  h2, h3, h4 { break-after: avoid; }
+  pre { white-space: pre-wrap; word-break: break-word; }
+  pre code { white-space: pre-wrap; font-size: 8pt; }
+  table { font-size: 8.5pt; }
+  tr, pre { break-inside: avoid; }
+  .table-wrap { overflow: visible; }
+  a { color: inherit; }
+  hr { display: none; }
+  footer { display: none; }
+}
+</style>
+</head>
+<body>
+<main>
+<h1 id="least-cost-blend-optimizer-user-guide">Least-cost blend optimizer: User Guide</h1>
+<h2 id="about-this-guide">About this guide</h2>
+<p>This guide is for metallurgists and process engineers who prepare blended products (synthetic slags, desulphurising and deoxidising compounds) and want the cheapest recipe that meets a customer's specification. You do not need to know programming. You will type a few commands, and the guide gives every one of them, exactly.</p>
+<p>The short reference is <code>README.md</code> in the tool's folder. This guide is the complete manual: it explains each step, each sheet, each column and each message.</p>
+<p><strong>Conventions used in this guide</strong></p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>You see</th>
+<th>It means</th>
+</tr></thead>
+<tbody>
+<tr><td>₹ (Rs)</td><td>Indian rupees. The tool itself writes "Rs" in its reports and on screen, so headings and messages are quoted with "Rs".</td></tr>
+<tr><td>wt %</td><td>Percent by mass. All analyses and limits are in wt %.</td></tr>
+<tr><td>t, dry t</td><td>Metric tonne; a dry tonne is a tonne with its free moisture removed.</td></tr>
+<tr><td><code>text like this</code></td><td>Something you type, or something the tool prints, exactly as shown.</td></tr>
+<tr><td>Blocks with a grey background</td><td>Commands to type in Windows PowerShell, or text the tool prints.</td></tr>
+</tbody></table></div>
+<p>Every command in this guide has been run, and every screen or report excerpt is copied from a real run on the example workbooks that come with the tool (<code>Test1_hand_worked.xlsx</code>, <code>Test2_synthetic_slag_dry.xlsx</code> and <code>Test2_synthetic_slag_with_what_if.xlsx</code>) or on small copies of them. The examples use invented data, not real company data.</p>
+<h2 id="contents">Contents</h2>
+<ul>
+<li><a href="#1-what-the-tool-does-and-when-to-use-it">1. What the tool does and when to use it</a>
+<ul>
+<li><a href="#11-the-problem-it-solves">1.1 The problem it solves</a>
+</li>
+<li><a href="#12-what-it-needs-and-what-it-gives-back">1.2 What it needs and what it gives back</a>
+</li>
+<li><a href="#13-the-whole-idea-on-one-page-test-1">1.3 The whole idea on one page: Test 1</a>
+</li></ul>
+</li>
+<li><a href="#2-how-it-works-without-mathematics">2. How it works, without mathematics</a>
+<ul>
+<li><a href="#21-the-mixing-rule">2.1 The mixing rule</a>
+</li>
+<li><a href="#22-binding-and-slack-limits">2.2 Binding and slack limits</a>
+</li>
+<li><a href="#23-why-the-cheapest-recipe-uses-only-a-few-raw-materials">2.3 Why the cheapest recipe uses only a few raw materials</a>
+</li>
+<li><a href="#24-two-raw-materials-why-a-specification-can-be-impossible">2.4 Two raw materials: why a specification can be impossible</a>
+</li></ul>
+</li>
+<li><a href="#3-one-time-setup">3. One-time setup</a>
+<ul>
+<li><a href="#31-what-you-need">3.1 What you need</a>
+</li>
+<li><a href="#32-install-python">3.2 Install Python</a>
+</li>
+<li><a href="#33-open-powershell-in-the-tools-folder">3.3 Open PowerShell in the tool's folder</a>
+</li>
+<li><a href="#34-create-the-virtual-environment">3.4 Create the virtual environment</a>
+</li>
+<li><a href="#35-activate-the-virtual-environment">3.5 Activate the virtual environment</a>
+</li>
+<li><a href="#36-install-the-packages">3.6 Install the packages</a>
+</li>
+<li><a href="#37-check-the-installation">3.7 Check the installation</a>
+</li>
+<li><a href="#38-choose-the-interpreter-in-vs-code-optional">3.8 Choose the interpreter in VS Code (optional)</a>
+</li>
+<li><a href="#39-the-folder-layout">3.9 The folder layout</a>
+</li>
+<li><a href="#310-if-you-move-or-rename-the-folder">3.10 If you move or rename the folder</a>
+</li></ul>
+</li>
+<li><a href="#4-choosing-a-workbook-layout">4. Choosing a workbook layout</a>
+</li>
+<li><a href="#5-filling-in-each-sheet">5. Filling in each sheet</a>
+<ul>
+<li><a href="#51-rules-for-every-sheet">5.1 Rules for every sheet</a>
+</li>
+<li><a href="#52-rawmaterials">5.2 RawMaterials</a>
+</li>
+<li><a href="#53-specs">5.3 Specs</a>
+</li>
+<li><a href="#54-settings">5.4 Settings</a>
+</li>
+<li><a href="#55-usagelimits-optional">5.5 UsageLimits (optional)</a>
+</li>
+<li><a href="#56-whatif-optional">5.6 WhatIf (optional)</a>
+</li>
+<li><a href="#57-checklist-before-your-first-real-run">5.7 Checklist before your first real run</a>
+</li></ul>
+</li>
+<li><a href="#6-running-the-tool">6. Running the tool</a>
+<ul>
+<li><a href="#61-the-command">6.1 The command</a>
+</li>
+<li><a href="#62-options">6.2 Options</a>
+</li>
+<li><a href="#63-where-the-report-goes">6.3 Where the report goes</a>
+</li>
+<li><a href="#64-time-savers">6.4 Time-savers</a>
+</li>
+<li><a href="#65-reading-the-screen">6.5 Reading the screen</a>
+</li></ul>
+</li>
+<li><a href="#7-reading-the-report">7. Reading the report</a>
+<ul>
+<li><a href="#71-summary">7.1 Summary</a>
+</li>
+<li><a href="#72-recipe">7.2 Recipe</a>
+</li>
+<li><a href="#73-composition">7.3 Composition</a>
+</li>
+<li><a href="#74-spec-check">7.4 Spec check</a>
+</li>
+<li><a href="#75-cost">7.5 Cost</a>
+</li>
+<li><a href="#76-shadow-prices">7.6 Shadow prices</a>
+</li>
+<li><a href="#77-reduced-costs">7.7 Reduced costs</a>
+</li>
+<li><a href="#78-diagnosis">7.8 Diagnosis</a>
+</li>
+<li><a href="#79-price-ranges">7.9 Price ranges</a>
+</li>
+<li><a href="#710-scenarios">7.10 Scenarios</a>
+</li>
+<li><a href="#711-scenario-sheets">7.11 Scenario sheets</a>
+</li>
+<li><a href="#712-the-lp-file">7.12 The .lp file</a>
+</li></ul>
+</li>
+<li><a href="#8-when-there-is-no-recipe-infeasible">8. When there is no recipe (infeasible)</a>
+<ul>
+<li><a href="#81-how-the-tool-explains-it">8.1 How the tool explains it</a>
+</li>
+<li><a href="#82-example-1-a-banned-raw-material">8.2 Example 1: a banned raw material</a>
+</li>
+<li><a href="#83-example-2-two-limits-that-conflict">8.3 Example 2: two limits that conflict</a>
+</li>
+<li><a href="#84-what-to-do-next">8.4 What to do next</a>
+</li></ul>
+</li>
+<li><a href="#9-everyday-tasks">9. Everyday tasks</a>
+</li>
+<li><a href="#10-before-using-a-recipe-in-production">10. Before using a recipe in production</a>
+</li>
+<li><a href="#11-troubleshooting">11. Troubleshooting</a>
+</li>
+<li><a href="#12-limitations">12. Limitations</a>
+</li>
+<li><a href="#13-glossary">13. Glossary</a>
+</li>
+<li><a href="#appendix-a-message-reference">Appendix A. Message reference</a>
+</li>
+<li><a href="#appendix-b-for-the-maintainer">Appendix B. For the maintainer</a>
+</li></ul>
+<hr>
+<h2 id="1-what-the-tool-does-and-when-to-use-it">1. What the tool does and when to use it</h2>
+<h3 id="11-the-problem-it-solves">1.1 The problem it solves</h3>
+<p>A customer gives you a specification: for example CaO between 50 and 56 wt %, Al2O3 at least 30 wt %, SiO2 at most 6 wt %. You have several raw materials, each with its own analysis and price. Usually <strong>many</strong> recipes meet the specification. Some cost far more than others.</p>
+<p>The tool does three things:</p>
+<ol>
+<li>It finds the <strong>cheapest</strong> recipe that meets every limit.
+</li>
+<li>It <strong>proves</strong> that no cheaper recipe exists. This is not a search that might miss something: the method (linear programming, explained in <a href="#2-how-it-works-without-mathematics">chapter 2</a>) gives the exact optimum.
+</li>
+<li>It <strong>explains</strong> the answer: which limits drive the cost, what it would save to relax each one, how much cheaper an unused raw material would have to be before it is worth using, and, when no recipe exists, why.
+</li></ol>
+<p>Use it when you quote a new product, when a raw material price changes, when a customer asks for a tighter or looser limit, when a supplier offers a new material, and to check whether today's production recipe is the cheapest one.</p>
+<h3 id="12-what-it-needs-and-what-it-gives-back">1.2 What it needs and what it gives back</h3>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>You provide (in an Excel workbook)</th>
+<th>The tool gives back (in an Excel report and on screen)</th>
+</tr></thead>
+<tbody>
+<tr><td>Each raw material's price (₹ per tonne), moisture (wt %), LOI (wt %) and chemical analysis (wt %, dry basis)</td><td>The cheapest recipe, in wt % of the dry blend and in kg per batch</td></tr>
+<tr><td>The customer's limits, e.g. CaO 50–56 wt %</td><td>The blend analysis and a check of every limit</td></tr>
+<tr><td>Optional: limits on how much of a raw material may be used</td><td>The cost in ₹ per dry tonne, per as-received tonne and per batch</td></tr>
+<tr><td>Optional: what-if scenarios to compare</td><td>What each binding limit costs, which raw materials are not used and why, the price range of each raw material, and a side-by-side comparison of every scenario</td></tr>
+<tr><td></td><td>If no recipe exists: a plain-language diagnosis</td></tr>
+</tbody></table></div>
+<h3 id="13-the-whole-idea-on-one-page-test-1">1.3 The whole idea on one page: Test 1</h3>
+<p>The tool comes with a small worked example, <code>templates\Test1_hand_worked.xlsx</code>. It has three raw materials. Prices are per dry tonne and there is no moisture or LOI, so it is easy to check by hand.</p>
+<p><strong>Raw materials</strong> (sheet RawMaterials, analyses in wt %):</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Name</th>
+<th>Cost_Rs_per_t</th>
+<th>Price_basis</th>
+<th>CaO</th>
+<th>Al2O3</th>
+<th>SiO2</th>
+<th>Others</th>
+</tr></thead>
+<tbody>
+<tr><td>Lime</td><td>9000</td><td>dry</td><td>92</td><td>1</td><td>2</td><td>5</td></tr>
+<tr><td>Calcined alumina</td><td>30000</td><td>dry</td><td>1</td><td>85</td><td>6</td><td>8</td></tr>
+<tr><td>Bauxite</td><td>12000</td><td>dry</td><td>2</td><td>60</td><td>8</td><td>30</td></tr>
+</tbody></table></div>
+<p><strong>Customer limits</strong> (sheet Specs): CaO at least 50 wt %, Al2O3 at least 30 wt %, SiO2 at most 6 wt %.</p>
+<p><strong>What the tool prints</strong> (from a real run of <code>python run.py templates\Test1_hand_worked.xlsx</code>):</p>
+<pre><code>Cost: Rs 11,482 per dry t of blend | Rs 11,482 per as-received t | Rs 11,482 per batch
+
+Recipe (batch 1,000.0 kg as received, 1,000.0 kg dry):
+      Raw material Dry blend (wt %) Dry mass (kg/batch) As-received mass (kg/batch)
+              Lime            53.40               534.0                       534.0
+  Calcined alumina             6.02                60.2                        60.2
+           Bauxite            40.58               405.8                       405.8
+             TOTAL           100.00             1,000.0                     1,000.0
+
+Spec check:
+   Spec Limits Basis Target Min Target Max Achieved        Status
+    CaO    CaO   dry      50.00               50.00 Binding (Min)
+  Al2O3  Al2O3   dry      30.00               30.00 Binding (Min)
+   SiO2   SiO2   dry                  6.00     4.68         Slack
+
+Shadow prices of binding limits (Rs per dry t saved by relaxing; valid only near the current limit):
+  Constraint         Relax by Step       Limit unit Saving per step (Rs/dry t) Saving per 1 unit (Rs/dry t)
+     CaO_min lowering the Min    1 wt % (dry basis)                        450                          450
+   Al2O3_min lowering the Min    1 wt % (dry basis)                        738                          738</code></pre>
+<p>How to read it:</p>
+<ul>
+<li>The cheapest recipe is 53.40 wt % Lime, 6.02 wt % Calcined alumina and 40.58 wt % Bauxite. It costs ₹ 11,482 per dry tonne. No other mix of these three materials that meets the limits is cheaper.
+</li>
+<li>CaO and Al2O3 sit exactly on their minimums (<strong>Binding</strong>): these two limits hold the recipe where it is. SiO2 is 4.68 wt %, below its 6 wt % maximum (<strong>Slack</strong>): it does not affect the cost.
+</li>
+<li>If the customer accepted 49 wt % CaO instead of 50 wt %, the blend would cost about ₹ 450 per dry tonne less. One wt % less Al2O3 would save about ₹ 738 per dry tonne.
+</li></ul>
+<p>The rest of this guide explains each of these ideas and every other part of the report.</p>
+<hr>
+<h2 id="2-how-it-works-without-mathematics">2. How it works, without mathematics</h2>
+<h3 id="21-the-mixing-rule">2.1 The mixing rule</h3>
+<p>When you mix raw materials, the blend's analysis is the <strong>weighted average</strong> of the materials' analyses, weighted by how much of each you use. The same is true for cost.</p>
+<p>Test 1 example, with the shares from the recipe above:</p>
+<ul>
+<li>Blend CaO = 0.5340 × 92 + 0.0602 × 1 + 0.4058 × 2 = 50.00 wt %
+</li>
+<li>Blend cost = 0.5340 × ₹ 9,000 + 0.0602 × ₹ 30,000 + 0.4058 × ₹ 12,000 = ₹ 4,806 + ₹ 1,807 + ₹ 4,869 = ₹ 11,482 per dry tonne
+</li></ul>
+<p>(These three cost figures appear in the report's Recipe sheet, in the column "Cost share (Rs/dry t of blend)".)</p>
+<p>Because every limit and the cost are weighted averages, doubling a share doubles its effect, and the effects simply add up. Mathematicians call such a problem <strong>linear</strong>. For linear problems there is an exact method, called <strong>linear programming</strong>, that finds the best answer and proves that nothing better exists. The program that carries out the method is called a <strong>solver</strong>; this tool uses a solver called HiGHS.</p>
+<p>Ratios such as basicity (CaO / SiO2) are not weighted averages, but a ratio limit such as "CaO / SiO2 at least 8" can be rewritten as "CaO − 8 × SiO2 at least 0", which is. The tool does this for you.</p>
+<h3 id="22-binding-and-slack-limits">2.2 Binding and slack limits</h3>
+<p>After the tool has found the cheapest recipe, every limit is in one of two states:</p>
+<ul>
+<li><strong>Binding</strong>: the blend sits exactly on the limit. The limit is pushing against the recipe; if you relaxed it, the recipe would change and get cheaper. In Test 1, CaO (exactly 50.00 wt %, minimum 50) and Al2O3 (exactly 30.00 wt %, minimum 30) are binding.
+</li>
+<li><strong>Slack</strong>: the blend is inside the limit with room to spare. Relaxing it would change nothing. In Test 1, SiO2 is 4.68 wt % against a maximum of 6 wt %: slack by 1.32 wt %.
+</li></ul>
+<p>Only binding limits cost money. The report tells you, for each binding limit, how much (see <a href="#76-shadow-prices">7.6 Shadow prices</a>).</p>
+<h3 id="23-why-the-cheapest-recipe-uses-only-a-few-raw-materials">2.3 Why the cheapest recipe uses only a few raw materials</h3>
+<p>The cheapest recipe usually uses <strong>no more raw materials than the number of binding limits plus one</strong>. (A usage limit that holds a raw material at its maximum or minimum counts as a binding limit here.) Each binding limit "uses up" one degree of freedom; the "+ 1" is because the shares must add up to 100 %.</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Example</th>
+<th>Binding limits</th>
+<th>Raw materials used</th>
+</tr></thead>
+<tbody>
+<tr><td>Test 1</td><td>2 (CaO, Al2O3)</td><td>3 of 3</td></tr>
+<tr><td>Test 2 (synthetic slag, dry basis)</td><td>4 (CaO, Al2O3, CaF2, P)</td><td>5 of 6: Lime fines is at 0 %</td></tr>
+<tr><td>Test 1 with the Al2O3 row deleted from Specs</td><td>0</td><td>1 of 3: 100 % Lime</td></tr>
+</tbody></table></div>
+<p>So a raw material at <strong>0 % is normal, not an error</strong>. It means the material brings nothing that the others cannot bring more cheaply. The report's Reduced costs sheet tells you how much cheaper it would have to be before it is worth using: in Test 2, Lime fines would have to fall from ₹ 6,500 to below ₹ 1,872 per tonne (as received).</p>
+<p>The last row of the table also shows a danger: if a spec row is missing, the tool does not complain. It simply optimises without that limit (here: 100 % Lime). This is why you should read the Spec check sheet after every run (<a href="#74-spec-check">7.4</a>).</p>
+<h3 id="24-two-raw-materials-why-a-specification-can-be-impossible">2.4 Two raw materials: why a specification can be impossible</h3>
+<p>With only two raw materials there is only one decision: the share of the first one. This makes it easy to see why a specification can be impossible. The example uses two invented materials, P and Q (they also appear in the tool's own tests):</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Name</th>
+<th>Al2O3 (wt %)</th>
+<th>Al (wt %)</th>
+<th>Price (₹ per dry t)</th>
+</tr></thead>
+<tbody>
+<tr><td>P</td><td>60</td><td>10</td><td>10,000</td></tr>
+<tr><td>Q</td><td>72</td><td>19</td><td>15,000</td></tr>
+</tbody></table></div>
+<p>Each limit allows only a range of P's share:</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Limit</th>
+<th>Blend value when the share of P is p</th>
+<th>Allowed share of P</th>
+</tr></thead>
+<tbody>
+<tr><td>Al2O3 at least 65 wt %</td><td>72 − 12 × p</td><td>at most 58.33 %</td></tr>
+<tr><td>Al at most 12 wt %</td><td>19 − 9 × p</td><td>at least 77.78 %</td></tr>
+</tbody></table></div>
+<pre><code>share of P:   0 %           58.33 %       77.78 %          100 %
+Al2O3 &gt;= 65:  |================|
+Al &lt;= 12:                                    |================|</code></pre>
+<p>The two ranges do not overlap, so <strong>no recipe meets both limits</strong>. The problem is called <strong>infeasible</strong>. This is what the tool reports for this case (real run):</p>
+<pre><code>Status: Infeasible | spec basis: dry | lab convention: dry_incl_loi
+No recipe: the solver status is &#x27;Infeasible&#x27;.
+
+No blend meets every limit (the problem is infeasible).
+Pre-check: every limit can be met on its own, so some limits conflict with each other.
+Elastic model: these limits cannot all be met together: Al2O3_min, Al_max.
+  - Al2O3_min (Al2O3 &gt;= 65.00 %): the highest Al2O3 achievable while Al &lt;= 12.00 % and all other limits are held is 62.67 %.
+  - Al_max (Al &lt;= 12.00 %): the lowest Al achievable while Al2O3 &gt;= 65.00 % and all other limits are held is 13.75 %.</code></pre>
+<p>The numbers match the picture: at 77.78 % P (the least P that keeps Al at 12 wt %), Al2O3 is only 62.67 wt %; at 58.33 % P (the most P that still gives 65 wt % Al2O3), Al is 13.75 wt %.</p>
+<p>If the customer accepted Al up to 15 wt %, the second range would become "at least 44.44 %". The ranges then overlap between 44.44 % and 58.33 %, and the tool picks the cheapest share inside the overlap: 58.33 % P (P is the cheaper material), at ₹ 12,083 per dry tonne (real run).</p>
+<p>With more raw materials there are more decisions and you cannot draw the picture any more, but the idea is the same: each limit allows a region of recipes, and the specification is infeasible when the regions have no recipe in common. <a href="#8-when-there-is-no-recipe-infeasible">Chapter 8</a> shows how the tool explains such cases.</p>
+<hr>
+<h2 id="3-one-time-setup">3. One-time setup</h2>
+<p>You do this once per computer. If someone has already set up the tool on your computer, skip to <a href="#37-check-the-installation">3.7 Check the installation</a>.</p>
+<h3 id="31-what-you-need">3.1 What you need</h3>
+<ul>
+<li>A Windows 10 or 11 computer. (The tool also runs on macOS and Linux; the differences are noted where they matter.)
+</li>
+<li><strong>Python 3.12 or newer.</strong> The packages the tool uses need at least 3.12. The tool was built and tested with Python 3.13.15, so 3.13 is the safest choice.
+</li>
+<li>An internet connection for the one-time installation of the packages (about a minute). After that the tool works completely offline.
+</li>
+<li>The tool's folder, for example <code>D:\VS Python\Cost Optimizer</code>.
+</li></ul>
+<h3 id="32-install-python">3.2 Install Python</h3>
+<p>This step is done in a web browser and the Python installer, not with a command.</p>
+<ol>
+<li>Go to python.org, open <em>Downloads → Windows</em>, and download the <strong>Windows installer (64-bit)</strong> for Python 3.13.
+</li>
+<li>Run the installer and keep the default options. The installer also installs the Python launcher <code>py</code>.
+</li>
+<li>Check the installation in PowerShell (see <a href="#33-open-powershell-in-the-tools-folder">3.3</a> for how to open it):
+</li></ol>
+<pre><code>py -3.13 --version</code></pre>
+<p>Expected output (the last digits can differ):</p>
+<pre><code>Python 3.13.15</code></pre>
+<h3 id="33-open-powershell-in-the-tools-folder">3.3 Open PowerShell in the tool's folder</h3>
+<p>All commands in this guide are typed in <strong>Windows PowerShell</strong>, in the tool's folder.</p>
+<ol>
+<li>Open the tool's folder in File Explorer.
+</li>
+<li>Click in the address bar at the top, type <code>powershell</code> and press Enter.
+</li></ol>
+<p>A PowerShell window opens in that folder. Alternatively, open PowerShell from the Start menu and change to the folder with <code>cd</code>. Put the path in quotes because it contains a space:</p>
+<pre><code>cd &quot;D:\VS Python\Cost Optimizer&quot;</code></pre>
+<p>In VS Code, <em>Terminal → New Terminal</em> opens PowerShell in the open folder.</p>
+<h3 id="34-create-the-virtual-environment">3.4 Create the virtual environment</h3>
+<p>A <strong>virtual environment</strong> is a private copy of Python, inside the tool's folder, with exactly the package versions the tool needs. It keeps the tool independent of anything else installed on your computer. It lives in a folder called <code>.venv</code>.</p>
+<p>In PowerShell, in the tool's folder, type:</p>
+<pre><code>py -3.13 -m venv .venv</code></pre>
+<p>This takes a few seconds and prints nothing. A new folder <code>.venv</code> appears.</p>
+<h3 id="35-activate-the-virtual-environment">3.5 Activate the virtual environment</h3>
+<p><strong>Activating</strong> tells this PowerShell window to use the Python inside <code>.venv</code>. You must do this <strong>every time you open a new PowerShell window</strong>.</p>
+<pre><code>.\.venv\Scripts\Activate.ps1</code></pre>
+<p>The prompt now starts with <code>(.venv)</code>:</p>
+<pre><code>(.venv) PS D:\VS Python\Cost Optimizer&gt;</code></pre>
+<p><strong>If PowerShell refuses.</strong> On many company computers, PowerShell blocks scripts. You then see a red message like this (real output; the path is shortened):</p>
+<pre><code>...\.venv\Scripts\Activate.ps1 cannot be loaded because running scripts
+is disabled on this system. For more information, see about_Execution_Policies at
+https:/go.microsoft.com/fwlink/?LinkID=135170.</code></pre>
+<p>Use one of these commands, then activate again:</p>
+<pre><code>Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process</code></pre>
+<pre><code>Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser</code></pre>
+<p>The first one allows scripts <strong>in this window only</strong>; you repeat it in each new window. The second allows them <strong>permanently for your Windows account</strong>. If PowerShell asks you to confirm, type <code>Y</code> and press Enter. If neither is allowed on your computer, ask IT, or use Command Prompt instead (below).</p>
+<p><strong>Command Prompt alternative.</strong> In Command Prompt (<code>cmd</code>), activate with:</p>
+<pre><code>.venv\Scripts\activate.bat</code></pre>
+<p><strong>Without activating.</strong> You can also skip activation and type the full path to the Python in <code>.venv</code> instead of <code>python</code>, for example <code>.venv\Scripts\python.exe run.py templates\Test1_hand_worked.xlsx</code>. This guide uses the shorter <code>python</code> form and assumes the environment is active.</p>
+<p><strong>macOS and Linux.</strong> Create the environment with <code>python3 -m venv .venv</code> and activate it with <code>source .venv/bin/activate</code>. Use <code>/</code> instead of <code>\</code> in all paths.</p>
+<h3 id="36-install-the-packages">3.6 Install the packages</h3>
+<p>With the environment active, type:</p>
+<pre><code>python -m pip install -r requirements.txt</code></pre>
+<p>This downloads and installs the exact package versions listed in <code>requirements.txt</code>, including PuLP (the modelling package) and HiGHS (the solver, package name <code>highspy</code>). Older versions of PuLP came with a solver called CBC; PuLP 4 does not, and the tool does not need it.</p>
+<p>On the test computer this took 36 seconds and ended with:</p>
+<pre><code>Successfully installed PuLP-4.2.0 Pygments-2.21.0 annotated-types-0.8.0 colorama-0.4.6 cpsat-logutils-1.0.0 et_xmlfile-2.0.0 highspy-1.15.1 iniconfig-2.3.1 numpy-2.5.4 openpyxl-3.1.5 orloge-1.0.0 packaging-26.3 pandas-3.1.0 pluggy-1.7.0 pydantic-2.14.1 pydantic_core-2.50.1 pytest-9.1.1 python-dateutil-3.0.0 six-1.17.0 typing-inspection-0.4.4 typing_extensions-4.16.0 tzdata-2026.5</code></pre>
+<p>PowerShell may also show a red block containing <code>NativeCommandError</code> and a line like <code>[notice] A new release of pip is available</code>. This is only a notice, not an error. You can ignore it.</p>
+<h3 id="37-check-the-installation">3.7 Check the installation</h3>
+<ol>
+<li>Check that the solver is found:
+</li></ol>
+<pre><code>python -c &quot;import pulp; print(&#x27;PuLP&#x27;, pulp.__version__, &#x27;| solvers:&#x27;, pulp.listSolvers(onlyAvailable=True))&quot;</code></pre>
+<p>Expected output:</p>
+<pre><code>PuLP 4.2.0 | solvers: [&#x27;HiGHS&#x27;]</code></pre>
+<ol start="2">
+<li>Run the first example:
+</li></ol>
+<pre><code>python run.py templates\Test1_hand_worked.xlsx</code></pre>
+<p>The output must start like this:</p>
+<pre><code>=== Least-cost blend: Test 1 hand-worked example ===
+Status: Optimal | spec basis: dry | lab convention: dry_incl_loi
+Cost: Rs 11,482 per dry t of blend | Rs 11,482 per as-received t | Rs 11,482 per batch</code></pre>
+<p>and end with:</p>
+<pre><code>Report written to: D:\VS Python\Cost Optimizer\output\Test1_hand_worked_result.xlsx
+LP file:           D:\VS Python\Cost Optimizer\output\Test1_hand_worked_result.lp</code></pre>
+<p>If you see this, the tool is ready.</p>
+<h3 id="38-choose-the-interpreter-in-vs-code-optional">3.8 Choose the interpreter in VS Code (optional)</h3>
+<p>This is a manual step in the VS Code window. It is only needed if you run the tool from VS Code.</p>
+<ol>
+<li>Open the tool's folder in VS Code (<em>File → Open Folder</em>).
+</li>
+<li>Press Ctrl+Shift+P, type <code>Python: Select Interpreter</code> and press Enter.
+</li>
+<li>Choose the entry that points to <code>.venv</code> (it shows <code>.\.venv\Scripts\python.exe</code>).
+</li></ol>
+<p>New terminals in VS Code then activate the environment automatically.</p>
+<h3 id="39-the-folder-layout">3.9 The folder layout</h3>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Folder or file</th>
+<th>What it holds</th>
+<th>In git?</th>
+</tr></thead>
+<tbody>
+<tr><td><code>templates\</code></td><td>Blank templates to copy, and the example workbooks used in this guide</td><td>Yes</td></tr>
+<tr><td><code>data\</code></td><td><strong>Your</strong> product and raw-material workbooks. Create it once (command below).</td><td><strong>No</strong></td></tr>
+<tr><td><code>output\</code></td><td>The reports and <code>.lp</code> files the tool writes. Created automatically.</td><td><strong>No</strong></td></tr>
+<tr><td><code>run.py</code></td><td>The program you run</td><td>Yes</td></tr>
+<tr><td><code>README.md</code>, <code>docs\</code></td><td>The short reference and this guide</td><td>Yes</td></tr>
+<tr><td><code>blend_optimizer\</code>, <code>tests\</code>, <code>make_templates.py</code></td><td>The program's parts and its tests. Do not edit.</td><td>Yes</td></tr>
+<tr><td><code>requirements.txt</code></td><td>The exact package versions</td><td>Yes</td></tr>
+<tr><td><code>.venv\</code></td><td>The virtual environment. Do not edit.</td><td>No</td></tr>
+</tbody></table></div>
+<p><strong>Keep your real workbooks in <code>data\</code>.</strong> Recipes and prices are confidential. The tool's folder is kept in git (a version-control system), and its settings exclude <code>data\</code> and <code>output\</code>, so files there are never uploaded. Workbooks saved anywhere else in the folder, for example in <code>templates\</code>, could be uploaded by mistake.</p>
+<p>Create the <code>data</code> folder once:</p>
+<pre><code>New-Item -ItemType Directory data</code></pre>
+<h3 id="310-if-you-move-or-rename-the-folder">3.10 If you move or rename the folder</h3>
+<p>The virtual environment remembers the folder it was created in. If you move or rename the tool's folder, delete <code>.venv</code> and create it again:</p>
+<pre><code>Remove-Item -Recurse -Force .venv</code></pre>
+<p>Then repeat <a href="#34-create-the-virtual-environment">3.4</a>, <a href="#35-activate-the-virtual-environment">3.5</a> and <a href="#36-install-the-packages">3.6</a>.</p>
+<hr>
+<h2 id="4-choosing-a-workbook-layout">4. Choosing a workbook layout</h2>
+<p>The tool reads Excel workbooks. You can organise them in two ways:</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th></th>
+<th>Layout A: one workbook per product</th>
+<th>Layout B: a master raw-material workbook plus one workbook per product</th>
+</tr></thead>
+<tbody>
+<tr><td>Raw materials</td><td>In each product workbook</td><td>Once, in the master workbook</td></tr>
+<tr><td>Specs, Settings, UsageLimits, WhatIf</td><td>In the product workbook</td><td>In each product workbook</td></tr>
+<tr><td>Template to copy</td><td><code>templates\Template_single_product.xlsx</code></td><td><code>templates\Template_master_raw_materials.xlsx</code> (once) and <code>templates\Template_product.xlsx</code> (per product)</td></tr>
+<tr><td>A price changes</td><td>Update every product workbook that uses it</td><td>Update the master once</td></tr>
+<tr><td>Best for</td><td>Starting out; one or two products; a one-off quote</td><td>Many products from the same raw materials</td></tr>
+</tbody></table></div>
+<p><strong>Recommendation: start with layout A.</strong> Everything for one product is in one file, which is easier to check. Move to layout B when you run several products from the same raw materials.</p>
+<p><strong>To start a layout A workbook:</strong></p>
+<ol>
+<li>Copy the template into <code>data\</code> under the product's name:
+</li></ol>
+<pre><code>Copy-Item templates\Template_single_product.xlsx data\Slag_SS45.xlsx</code></pre>
+<ol start="2">
+<li>Open <code>data\Slag_SS45.xlsx</code> in Excel and fill in the sheets (<a href="#5-filling-in-each-sheet">chapter 5</a>).
+</li></ol>
+<p><strong>To start layout B:</strong> copy <code>templates\Template_master_raw_materials.xlsx</code> to, for example, <code>data\Raw_materials.xlsx</code> (once), and <code>templates\Template_product.xlsx</code> to a file per product. You run a product with the extra option <code>--raw-materials</code> (<a href="#62-options">6.2</a>).</p>
+<p>If a product workbook in layout B still contains its own RawMaterials sheet, the tool uses the master and warns you. Real run, with a layout A workbook given a master file:</p>
+<pre><code>Input warnings (1):
+  - Test2_synthetic_slag_dry.xlsx also has a RawMaterials sheet. It is ignored because a master raw-material file (Example_master_raw_materials.xlsx) was given.</code></pre>
+<p>The example workbooks show both layouts: <code>templates\Test2_synthetic_slag_dry.xlsx</code> is layout A; <code>templates\Example_master_raw_materials.xlsx</code> with <code>templates\Test2_product_only.xlsx</code> is the same product in layout B.</p>
+<hr>
+<h2 id="5-filling-in-each-sheet">5. Filling in each sheet</h2>
+<p>A product workbook can have these sheets. Every template also has a <strong>README</strong> sheet with a short version of these instructions.</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Sheet</th>
+<th>Required?</th>
+<th>One row per</th>
+</tr></thead>
+<tbody>
+<tr><td>RawMaterials</td><td>Yes (in the product workbook, or in the master workbook for layout B)</td><td>raw material</td></tr>
+<tr><td>Specs</td><td>Yes</td><td>customer limit</td></tr>
+<tr><td>Settings</td><td>Yes</td><td>setting</td></tr>
+<tr><td>UsageLimits</td><td>No</td><td>raw material with a product- or customer-specific limit</td></tr>
+<tr><td>WhatIf</td><td>No</td><td>change in a what-if scenario</td></tr>
+</tbody></table></div>
+<h3 id="51-rules-for-every-sheet">5.1 Rules for every sheet</h3>
+<ol>
+<li><strong>Keep the headers in row 1</strong> and do not rename the fixed column headers (such as <code>Cost_Rs_per_t</code>). The tool is forgiving about capital letters, spaces, underscores and the % sign in these fixed headers: a header typed <code>moisture %</code> is read as <code>Moisture_%</code>. A header that is <em>almost</em> right, such as <code>Moistre_%</code>, is an error, because it would otherwise be read as a chemical component.
+</li>
+<li><strong>Type plain numbers.</strong> No units, no <code>&lt;0.01</code>, no <code>nd</code>. Text that is a number, such as <code>12.5</code>, is accepted. In an analysis column, a <strong>blank</strong> cell means "not analysed" and a <strong>0</strong> means "analysed, none present". Both count as 0 in the calculation; see <a href="#52-rawmaterials">5.2</a> for the warning a blank can give.
+</li>
+<li><strong>Names must match exactly</strong> between sheets: a component name in Specs must be written exactly as the column header in RawMaterials (<code>Al2O3</code>, not <code>AL2O3</code>). If you make a typo, the error message suggests the name you probably meant.
+</li>
+<li>Blank rows are ignored.
+</li>
+<li>Every problem is reported at once when you run the tool, so you can correct them all before running again.
+</li></ol>
+<h3 id="52-rawmaterials">5.2 RawMaterials</h3>
+<p>One row per raw material. The first seven columns are fixed; <strong>every other column is a chemical component</strong>.</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Column</th>
+<th>What to enter</th>
+<th>Unit</th>
+<th>If left blank</th>
+</tr></thead>
+<tbody>
+<tr><td><code>Name</code></td><td>A unique name. Two names that differ only in capital letters count as the same name, which is an error.</td><td>–</td><td>Error</td></tr>
+<tr><td><code>Cost_Rs_per_t</code></td><td>The <strong>landed cost</strong>: price plus freight and handling to your plant, per tonne</td><td>₹ per tonne, on the basis in <code>Price_basis</code></td><td>Error</td></tr>
+<tr><td><code>Price_basis</code></td><td><code>as_received</code> (the price is per tonne as delivered, with its moisture) or <code>dry</code> (per dry tonne)</td><td>–</td><td>Treated as <code>dry</code> if <code>Moisture_%</code> is 0; an error otherwise</td></tr>
+<tr><td><code>Moisture_%</code></td><td>Free moisture of the material as delivered</td><td>wt %, as received</td><td>0 (with a warning if the price is <code>as_received</code>)</td></tr>
+<tr><td><code>LOI_%</code></td><td>Loss on ignition</td><td>wt %, dry basis</td><td>0</td></tr>
+<tr><td><code>Min_use_%</code></td><td>Plant-wide minimum share of this material in <strong>any</strong> blend</td><td>wt % of the dry blend</td><td>0</td></tr>
+<tr><td><code>Max_use_%</code></td><td>Plant-wide maximum share, for real plant reasons (e.g. a fines grade that segregates)</td><td>wt % of the dry blend</td><td>100</td></tr>
+<tr><td>any other column</td><td>The analysis of one component, e.g. <code>CaO</code>. The header is the component name. Add, remove or reorder these columns freely. Type 0 for a component that was analysed and is not present.</td><td>wt %, dry basis</td><td>Counted as 0, but taken as "not analysed": a warning if a spec uses the component (see below)</td></tr>
+</tbody></table></div>
+<p><strong>Worked example</strong> (Test 2, first two rows):</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Name</th>
+<th>Cost_Rs_per_t</th>
+<th>Price_basis</th>
+<th>Moisture_%</th>
+<th>LOI_%</th>
+<th>Min_use_%</th>
+<th>Max_use_%</th>
+<th>CaO</th>
+<th>SiO2</th>
+<th>Al2O3</th>
+<th>MgO</th>
+<th>CaF2</th>
+<th>Fe2O3</th>
+<th>TiO2</th>
+<th>S</th>
+<th>P</th>
+</tr></thead>
+<tbody>
+<tr><td>Lime</td><td>9000</td><td>as_received</td><td>0.5</td><td>3.5</td><td></td><td></td><td>92</td><td>1.5</td><td>0.8</td><td>1.2</td><td>0</td><td>0.3</td><td>0</td><td>0.03</td><td>0.01</td></tr>
+<tr><td>Lime fines</td><td>6500</td><td>as_received</td><td>1</td><td>6</td><td></td><td>20</td><td>88</td><td>2.5</td><td>1.2</td><td>1.5</td><td>0</td><td>0.6</td><td>0</td><td>0.05</td><td>0.02</td></tr>
+</tbody></table></div>
+<ul>
+<li>Lime costs ₹ 9,000 per tonne <strong>as delivered</strong>, with 0.5 wt % moisture. The tool converts every price to ₹ per <strong>dry</strong> tonne: 9,000 ÷ (1 − 0.5/100) = ₹ 9,045 per dry tonne. (You will see 9,045 in the report's Recipe sheet, column "Dry cost (Rs/dry t)".)
+</li>
+<li>Lime fines may never exceed 20 wt % of the dry blend in any product (a plant-wide limit). Its Min_use_% is blank, so its minimum is 0.
+</li></ul>
+<p><strong>Good practice</strong></p>
+<ul>
+<li>Enter the <strong>landed cost</strong>, not the supplier's list price.
+</li>
+<li>Enter the <strong>average of recent lots</strong>, not one sample. One unusual sample gives one unusual recipe.
+</li>
+<li>List <strong>every material that could be used</strong>, not only today's. The tool will tell you if a material is not worth using, and at what price it would be.
+</li>
+<li>Use plant-wide <code>Min_use_%</code> and <code>Max_use_%</code> only for real plant reasons (handling, segregation, a contract minimum). Customer- or product-specific limits belong in the UsageLimits sheet (<a href="#55-usagelimits-optional">5.5</a>).
+</li></ul>
+<p><strong>The analysis basis and the 97–103 % check</strong></p>
+<p>The tool assumes that analyses are on a <strong>dry basis with LOI reported separately</strong>, so that for each material the components plus LOI add up to about 100 wt %. For Lime above: 92 + 1.5 + 0.8 + 1.2 + 0 + 0.3 + 0 + 0.03 + 0.01 = 95.84 wt %, plus LOI 3.5 = 99.34 wt %.</p>
+<p>If a material adds up to less than 97 or more than 103 wt %, the tool prints a <strong>warning</strong>, not an error: the run continues. Example from the example workbook <code>templates\Broken_example.xlsx</code>, where Lime's CaO was typed as 80 instead of 92:</p>
+<pre><code>  - RawMaterials &#x27;Lime&#x27;: components + LOI = 87.34 %, outside the expected 97-103 % for the &#x27;dry_incl_loi&#x27; lab convention. Neither convention fits (components alone = 83.84 %, components + LOI = 87.34 %): check for a missing component column, a typing error or a missing LOI.</code></pre>
+<p>Some laboratories report analyses on an <strong>LOI-free</strong> (ignited) basis, so the components alone add up to about 100 %. The tool can read such analyses too, but this is a setting for the whole tool, called <code>LAB_ANALYSIS_CONVENTION</code>, which the maintainer changes (<a href="#appendix-b-for-the-maintainer">Appendix B</a>). The two conventions are <code>dry_incl_loi</code> (the default) and <code>loi_free</code>. The warning tells you when your numbers look like the other convention.</p>
+<p><strong>Blank or 0: why it matters.</strong> The tool only knows the values you type. A blank cell is counted as 0, so a value that was never measured can make the product fail a limit that the report says is met. That is why the tool treats a blank as "not analysed" and a 0 as "analysed, none present", and <strong>warns</strong> about a blank in a component that a spec uses, for every raw material the blend may use. Example (a copy of Test 2 where the P cell of Calcined bauxite was left blank instead of 0.05; real run):</p>
+<pre><code>Input warnings (1):
+  - RawMaterials &#x27;Calcined bauxite&#x27;: P is blank (not analysed) and is counted as 0, but a spec uses it. Type 0 if it is genuinely absent.</code></pre>
+<ul>
+<li>The material still adds up to 99.55 wt %, so the 97–103 % check does not catch it. This warning does.
+</li>
+<li>The run continues with P taken as 0. The tool now thinks Calcined bauxite carries no phosphorus, and chooses a different recipe that costs ₹ 12,381 instead of ₹ 13,004 per dry tonne.
+</li>
+<li>The report shows P = 0.024 wt % (limit 0.030 wt %). With the real analysis, the same recipe has <strong>0.032 wt % P</strong>: it would fail the customer's limit.
+</li></ul>
+<p>So fill in every value that was analysed, and <strong>type 0</strong> where a component is genuinely absent. There is no warning for a blank in a component that no spec uses (it cannot change the recipe), or for a material that may not be used at all (Max_use_% 0 in RawMaterials or UsageLimits).</p>
+<h3 id="53-specs">5.3 Specs</h3>
+<p>One row per customer limit.</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Column</th>
+<th>What to enter</th>
+<th>If left blank</th>
+</tr></thead>
+<tbody>
+<tr><td><code>Name</code></td><td>A unique label for the limit. In the report the limits are called <code>&lt;Name&gt;_min</code> and <code>&lt;Name&gt;_max</code>.</td><td>Error</td></tr>
+<tr><td><code>Numerator</code></td><td>What is limited: a component, or several joined with <code>+</code>, each optionally with a conversion factor (see below)</td><td>Error</td></tr>
+<tr><td><code>Denominator</code></td><td>Leave blank for a composition limit. Fill it in for a <strong>ratio</strong> (same syntax as Numerator).</td><td>Composition limit</td></tr>
+<tr><td><code>Min</code></td><td>The customer's minimum</td><td>No minimum</td></tr>
+<tr><td><code>Max</code></td><td>The customer's maximum</td><td>No maximum (but at least one of Min and Max is needed)</td></tr>
+<tr><td><code>Margin</code></td><td>Your safety margin, in the same unit as the limit</td><td>0</td></tr>
+</tbody></table></div>
+<p><strong>The kinds of limit, with examples</strong></p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Kind</th>
+<th>Name</th>
+<th>Numerator</th>
+<th>Denominator</th>
+<th>Min</th>
+<th>Max</th>
+<th>Margin</th>
+<th>Meaning</th>
+</tr></thead>
+<tbody>
+<tr><td>Minimum</td><td>Al2O3</td><td>Al2O3</td><td></td><td>30</td><td></td><td></td><td>at least 30 wt % Al2O3 (Test 1)</td></tr>
+<tr><td>Maximum</td><td>P</td><td>P</td><td></td><td></td><td>0.03</td><td></td><td>at most 0.03 wt % P (Test 2)</td></tr>
+<tr><td>Range</td><td>CaO</td><td>CaO</td><td></td><td>50</td><td>56</td><td></td><td>between 50 and 56 wt % CaO (Test 2)</td></tr>
+<tr><td>Sum</td><td>CaO+MgO</td><td>CaO+MgO</td><td></td><td>55</td><td></td><td></td><td>CaO plus MgO at least 55 wt %</td></tr>
+<tr><td>Ratio</td><td>Basicity</td><td>CaO</td><td>SiO2</td><td>8</td><td></td><td></td><td>CaO / SiO2 at least 8 (Test 2)</td></tr>
+<tr><td>Conversion factor</td><td>Total Al2O3</td><td>Al2O3+1.8895*Al</td><td></td><td>75</td><td></td><td></td><td>Al2O3 with metallic Al counted as Al2O3, at least 75 wt %</td></tr>
+<tr><td>With a margin</td><td>CaO</td><td>CaO</td><td></td><td>50</td><td>56</td><td>0.5</td><td>the tool aims for 50.5–55.5 wt %</td></tr>
+</tbody></table></div>
+<p><strong>Conversion factors: counting one component as another</strong></p>
+<p>Some customers count a component in another form. Metallic Al, for example, oxidises to Al2O3 in the slag, so it is counted in Al2O3 by stoichiometry. Write the factor in front of the component, joined with <code>*</code>:</p>
+<pre><code>Al2O3+1.8895*Al</code></pre>
+<p>This means "Al2O3 wt % + 1.8895 × Al wt %" for every raw material. 1.8895 is the mass of Al2O3 formed from one unit mass of Al: the molar mass of Al2O3 (101.96) divided by its two atoms of Al (2 × 26.98).</p>
+<p>Rules:</p>
+<ol>
+<li>Join terms with <code>+</code>. A term is a component (factor 1) or <code>number*Component</code>. Spaces around <code>+</code> and <code>*</code> are allowed.
+</li>
+<li>The factor is a plain positive number with a decimal point (<code>1.8895</code>, not <code>1,8895</code>), written <strong>before</strong> the component.
+</li>
+<li><code>-</code> (subtraction) is not allowed. A hyphen inside a component name, such as <code>Fe-total</code>, is fine.
+</li>
+<li>Each component may appear only once in an expression.
+</li>
+<li>The tool knows no chemistry: the factor is simply the number you type.
+</li></ol>
+<p>Common factors, each worked out as the molar mass of what it is counted as, per atom of the shared element, divided by the molar mass of what was analysed:</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Analysed as</th>
+<th>Counted as</th>
+<th>Factor</th>
+<th>Derivation</th>
+</tr></thead>
+<tbody>
+<tr><td>Al</td><td>Al2O3</td><td>1.8895</td><td>101.96 / (2 × 26.98)</td></tr>
+<tr><td>Mg</td><td>MgO</td><td>1.6583</td><td>40.304 / 24.305</td></tr>
+<tr><td>Ca</td><td>CaO</td><td>1.3992</td><td>56.077 / 40.078</td></tr>
+<tr><td>Si</td><td>SiO2</td><td>2.1393</td><td>60.084 / 28.086</td></tr>
+<tr><td>CaC2</td><td>CaO</td><td>0.8748</td><td>56.077 / 64.100</td></tr>
+<tr><td>FeO</td><td>Fe2O3</td><td>1.1113</td><td>159.687 / (2 × 71.844)</td></tr>
+<tr><td>CaF2</td><td>F</td><td>0.4867</td><td>(2 × 18.998) / 78.075</td></tr>
+</tbody></table></div>
+<p>For a metal counted as its oxide the rule reduces to: oxide molar mass ÷ (number of metal atoms in the oxide × atomic mass of the metal).</p>
+<p>Example (real run on two invented materials P with 60 wt % Al2O3 and 10 wt % Al, and Q with 72 wt % Al2O3 and 19 wt % Al; spec "Total Al2O3", Numerator <code>Al2O3+1.8895*Al</code>, Min 80):</p>
+<pre><code>Spec check:
+         Spec          Limits Basis Target Min Target Max Achieved        Status
+  Total Al2O3 Al2O3+1.8895*Al   dry      80.00               80.00 Binding (Min)</code></pre>
+<p>The report always shows the expression as you typed it (spaces removed), so the reader sees that a conversion was applied. A conversion factor works everywhere a plain component does: on every spec basis, in ratios (also in the Denominator), with margins, in WhatIf changes and in the diagnosis.</p>
+<p>If you used a helper column in RawMaterials for this before (e.g. a column <code>Al_as_Al2O3</code> = 1.8895 × Al), it is no longer needed: put the factor in Specs and delete the column. The tool's tests check that both ways give exactly the same recipe and cost.</p>
+<p><strong>Units</strong></p>
+<ul>
+<li>Composition limits are in <strong>wt %</strong> on the spec basis (<a href="#54-settings">5.4</a>). Enter a trace limit of 300 ppm as <strong>0.03</strong> (1 wt % = 10,000 ppm), not 300.
+</li>
+<li>Ratio limits have no unit: basicity 8 means CaO / SiO2 = 8.
+</li></ul>
+<p><strong>Margins only ever tighten a limit.</strong> The tool aims for Min + margin and Max − margin, the <strong>internal target</strong>. The customer's limit is unchanged and shown next to the target in the report. A negative margin is an error. A margin larger than half the range is also an error, for example (from <code>Broken_example.xlsx</code>, CaO 50–56 with margin 4):</p>
+<pre><code>  - Specs (Broken_example.xlsx) row 2 &#x27;CaO&#x27;: after the margin the internal range is empty: Min + margin = 54 is greater than Max - margin = 52. Reduce the margin.</code></pre>
+<h3 id="54-settings">5.4 Settings</h3>
+<p>Two columns, <code>Key</code> and <code>Value</code>, one row per setting.</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Key</th>
+<th>Value</th>
+<th>If missing or blank</th>
+</tr></thead>
+<tbody>
+<tr><td><code>Product_name</code></td><td>The product's name, shown on the report</td><td>The file name is used, with a warning</td></tr>
+<tr><td><code>Spec_basis</code></td><td>The basis of the customer's composition limits: <code>dry</code>, <code>as_received</code> or <code>ignited</code></td><td><code>dry</code></td></tr>
+<tr><td><code>Batch_size_kg</code></td><td>The total mass weighed into the mixer per batch, <strong>as received</strong>, in kg</td><td>1000</td></tr>
+<tr><td><code>Scale_resolution_kg</code></td><td>Optional. The resolution of your weighing scale, in kg (e.g. 0.5). The weigh sheet is rounded to it.</td><td>0.1</td></tr>
+</tbody></table></div>
+<p>Test 2 example:</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Key</th>
+<th>Value</th>
+</tr></thead>
+<tbody>
+<tr><td>Product_name</td><td>Synthetic slag (Test 2, dry basis)</td></tr>
+<tr><td>Spec_basis</td><td>dry</td></tr>
+<tr><td>Batch_size_kg</td><td>1000</td></tr>
+</tbody></table></div>
+<p><strong>The spec basis</strong></p>
+<p>The same blend has different analyses depending on how the sample is treated:</p>
+<ul>
+<li><code>dry</code>: the analysis of the dried blend (free moisture removed, LOI still in it). This is how the raw material analyses are entered.
+</li>
+<li><code>as_received</code>: the analysis of the blend as delivered, including its free moisture. Each component is a little lower than on a dry basis.
+</li>
+<li><code>ignited</code>: the analysis after loss on ignition, as the material is when it has melted into the slag. Each component is higher than on a dry basis, because the volatile part (LOI) is gone.
+</li></ul>
+<p>Confirm the basis with the customer: it is usually stated in their specification or on their analysis certificate ("on dry basis", "as received", "on ignited basis" or "loss-free"). If it is not stated, ask. Ratios such as basicity are the same on every basis.</p>
+<p><strong>Why it matters.</strong> The basis changes the recipe and the cost. Test 2 run with <code>Spec_basis</code> = <code>dry</code> and then <code>ignited</code> (two real runs, all other data identical):</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th></th>
+<th>Dry basis</th>
+<th>Ignited basis</th>
+</tr></thead>
+<tbody>
+<tr><td>Cost (₹ per dry t of blend)</td><td>13,004</td><td>13,143</td></tr>
+<tr><td>Lime (wt %)</td><td>52.09</td><td>40.75</td></tr>
+<tr><td>Calcined dolomite (wt %)</td><td>2.60</td><td>18.20</td></tr>
+<tr><td>CaO achieved (wt %)</td><td>50.00, binding</td><td>52.11, slack</td></tr>
+<tr><td>MgO achieved (wt %), Max 8</td><td>1.81, slack</td><td>8.00, <strong>binding</strong></td></tr>
+</tbody></table></div>
+<p>On an ignited basis every component counts for more, because the LOI is gone, and by a different amount for each raw material (Raw bauxite loses 24 wt % on ignition, Calcined bauxite only 1 wt %). The cheapest way to meet the limits changes: it uses far more Calcined dolomite, until the MgO maximum binds. Using the wrong basis gives the wrong recipe.</p>
+<p><strong>Batch size and scale resolution.</strong> <code>Batch_size_kg</code> is what the operator weighs: the as-received kg of all materials together. The report's weigh sheet (<a href="#72-recipe">7.2</a>) adds up exactly to this number, rounded to <code>Scale_resolution_kg</code>.</p>
+<p>An unknown key is ignored with a warning, for example (real run, a copy of Test 2 with an extra key <code>Colour</code>):</p>
+<pre><code>Input warnings (1):
+  - Settings (Test2_unknown_setting.xlsx) row 5: unknown setting &#x27;Colour&#x27; is ignored.</code></pre>
+<h3 id="55-usagelimits-optional">5.5 UsageLimits (optional)</h3>
+<p>Use this sheet for limits that apply to <strong>this product or customer only</strong>, for example a customer who does not accept fluorspar.</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Column</th>
+<th>What to enter</th>
+<th>If left blank</th>
+</tr></thead>
+<tbody>
+<tr><td><code>Name</code></td><td>A raw material name from RawMaterials</td><td>Error</td></tr>
+<tr><td><code>Min_use_%</code></td><td>Minimum share for this product</td><td>0</td></tr>
+<tr><td><code>Max_use_%</code></td><td>Maximum share for this product. <strong>0 bans the material.</strong></td><td>100</td></tr>
+</tbody></table></div>
+<p>Both in wt % of the dry blend.</p>
+<p>Example (<code>templates\Test2_synthetic_slag_fluorspar_ban.xlsx</code>):</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Name</th>
+<th>Min_use_%</th>
+<th>Max_use_%</th>
+</tr></thead>
+<tbody>
+<tr><td>Fluorspar</td><td></td><td>0</td></tr>
+</tbody></table></div>
+<p><strong>The tighter limit applies.</strong> When a material has a plant-wide limit in RawMaterials and a product limit here, the tool uses the tighter of the two on each side. Example: Lime fines has a plant-wide <code>Max_use_%</code> of 20. A product limit of 50 changes nothing (20 is tighter); a product limit of 10 lowers it to 10. If the two sides can no longer both be met (e.g. a product minimum of 30 against the plant maximum of 20), the tool reports an error.</p>
+<p>Do not put a raw material name in the Specs sheet to ban it: Specs only accepts chemical components (see <a href="#11-troubleshooting">11. Troubleshooting</a>).</p>
+<h3 id="56-whatif-optional">5.6 WhatIf (optional)</h3>
+<p>A <strong>scenario</strong> is a set of changes to the workbook that the tool solves separately and compares with the unchanged workbook (the <strong>base case</strong>). You do not need to copy the workbook to try something: you list the changes here.</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Column</th>
+<th>What to enter</th>
+</tr></thead>
+<tbody>
+<tr><td><code>Scenario</code></td><td>Any name, e.g. <code>Fluorspar dearer</code>. <strong>Rows with the same name form one scenario.</strong></td></tr>
+<tr><td><code>Change type</code></td><td>One of the six types below (the template has a drop-down list)</td></tr>
+<tr><td><code>Item</code></td><td>The raw material or spec Name that the change applies to</td></tr>
+<tr><td><code>New value</code></td><td>The new value</td></tr>
+</tbody></table></div>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Change type</th>
+<th>Item</th>
+<th>New value</th>
+<th>Blank New value means</th>
+</tr></thead>
+<tbody>
+<tr><td><code>Price</code></td><td>a raw material</td><td>New price, ₹ per tonne, on that material's own price basis</td><td>(not allowed)</td></tr>
+<tr><td><code>Spec Min</code></td><td>a spec Name</td><td>New minimum</td><td>Remove the minimum</td></tr>
+<tr><td><code>Spec Max</code></td><td>a spec Name</td><td>New maximum</td><td>Remove the maximum</td></tr>
+<tr><td><code>Spec Margin</code></td><td>a spec Name</td><td>New margin</td><td>Margin 0</td></tr>
+<tr><td><code>Usage Min</code></td><td>a raw material</td><td>New product minimum, wt % of dry blend</td><td>Back to 0</td></tr>
+<tr><td><code>Usage Max</code></td><td>a raw material</td><td>New product maximum, wt % of dry blend</td><td>Back to 100</td></tr>
+</tbody></table></div>
+<p>Usage changes replace the material's UsageLimits value for that scenario; the plant-wide limit in RawMaterials still applies, and the tighter one wins.</p>
+<p>Example (<code>templates\Test2_synthetic_slag_with_what_if.xlsx</code>):</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Scenario</th>
+<th>Change type</th>
+<th>Item</th>
+<th>New value</th>
+</tr></thead>
+<tbody>
+<tr><td>Fluorspar dearer</td><td>Price</td><td>Fluorspar</td><td>35000</td></tr>
+<tr><td>Looser P</td><td>Spec Max</td><td>P</td><td>0.035</td></tr>
+<tr><td>Capped bauxite</td><td>Usage Max</td><td>Raw bauxite</td><td>20</td></tr>
+<tr><td>Capped bauxite</td><td>Spec Margin</td><td>CaO</td><td>0.5</td></tr>
+<tr><td>No fluorspar</td><td>Usage Max</td><td>Fluorspar</td><td>0</td></tr>
+</tbody></table></div>
+<p>This gives four scenarios. "Capped bauxite" makes two changes at once. Each scenario is compared with the base case, not with the other scenarios. The results are in the report's Scenarios sheet and one sheet per scenario (<a href="#710-scenarios">7.10</a>, <a href="#711-scenario-sheets">7.11</a>).</p>
+<p><strong>The "current recipe" scenario: what is today's recipe costing?</strong></p>
+<p>To measure what the optimum would save, cost <strong>today's production recipe</strong> with the same prices and limits. You do this with a scenario that fixes each raw material at its current share. Two things need care:</p>
+<ul>
+<li>WhatIf usage values are in <strong>wt % of the dry blend</strong>, while the shop floor works in <strong>as-received kg</strong>. You must convert first.
+</li>
+<li>The fixed shares must add up to <strong>exactly 100 %</strong>. Rounded shares often add up to 99.99 % or 100.01 %, and then no recipe exists.
+</li></ul>
+<p><strong>Worked example.</strong> Today's recipe for the Test 2 product is, per 1,000 kg batch as weighed: Lime 515 kg, Calcined dolomite 40 kg, Calcined bauxite 205 kg, Raw bauxite 215 kg, Fluorspar 25 kg (invented figures).</p>
+<ol>
+<li>For each material, work out the dry kg: <strong>dry kg = wet kg × (1 − moisture / 100)</strong>, with the moisture from RawMaterials.
+</li>
+<li>Add up the dry kg.
+</li>
+<li>Each material's share is <strong>dry kg ÷ total dry kg × 100</strong>.
+</li></ol>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Raw material</th>
+<th>As-received kg</th>
+<th>Moisture_%</th>
+<th>Dry kg</th>
+<th>Dry wt %</th>
+<th>Rounded</th>
+</tr></thead>
+<tbody>
+<tr><td>Lime</td><td>515</td><td>0.5</td><td>512.425</td><td>52.1260</td><td>52.13</td></tr>
+<tr><td>Lime fines</td><td>0</td><td>1.0</td><td>0</td><td>0</td><td>0</td></tr>
+<tr><td>Calcined dolomite</td><td>40</td><td>0.5</td><td>39.800</td><td>4.0486</td><td>4.05</td></tr>
+<tr><td>Calcined bauxite</td><td>205</td><td>0.5</td><td>203.975</td><td>20.7492</td><td>20.75</td></tr>
+<tr><td>Raw bauxite</td><td>215</td><td>6.0</td><td>202.100</td><td>20.5585</td><td>20.56</td></tr>
+<tr><td>Fluorspar</td><td>25</td><td>1.0</td><td>24.750</td><td>2.5177</td><td>2.52</td></tr>
+<tr><td><strong>Total</strong></td><td><strong>1,000</strong></td><td></td><td><strong>983.050</strong></td><td><strong>100.0000</strong></td><td><strong>100.01</strong></td></tr>
+</tbody></table></div>
+<p>The rounded shares add up to 100.01 %.</p>
+<ol start="4">
+<li><strong>Fix every material except one</strong> with <code>Usage Min</code> = <code>Usage Max</code> = its share, and <strong>leave the largest one free</strong> (here Lime). The free material takes whatever is left, so rounding can never break the 100 % rule. Set <code>Usage Max</code> = 0 for materials <strong>not</strong> in today's recipe, so that the free share cannot go to them.
+</li></ol>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Scenario</th>
+<th>Change type</th>
+<th>Item</th>
+<th>New value</th>
+</tr></thead>
+<tbody>
+<tr><td>Current recipe</td><td>Usage Min</td><td>Calcined dolomite</td><td>4.05</td></tr>
+<tr><td>Current recipe</td><td>Usage Max</td><td>Calcined dolomite</td><td>4.05</td></tr>
+<tr><td>Current recipe</td><td>Usage Min</td><td>Calcined bauxite</td><td>20.75</td></tr>
+<tr><td>Current recipe</td><td>Usage Max</td><td>Calcined bauxite</td><td>20.75</td></tr>
+<tr><td>Current recipe</td><td>Usage Min</td><td>Raw bauxite</td><td>20.56</td></tr>
+<tr><td>Current recipe</td><td>Usage Max</td><td>Raw bauxite</td><td>20.56</td></tr>
+<tr><td>Current recipe</td><td>Usage Min</td><td>Fluorspar</td><td>2.52</td></tr>
+<tr><td>Current recipe</td><td>Usage Max</td><td>Fluorspar</td><td>2.52</td></tr>
+<tr><td>Current recipe</td><td>Usage Max</td><td>Lime fines</td><td>0</td></tr>
+</tbody></table></div>
+<p>Result (real run, on a copy of Test 2 with these rows):</p>
+<pre><code>=== Scenario: Current recipe (vs base case) ===
+...
+Cost:
+                                      Item    Base Scenario Change
+                             Solver status Optimal  Optimal       
+          Cost (Rs per dry tonne of blend)  13,004   13,944    940
+  Cost (Rs per as-received tonne of blend)  12,745   13,708    963
+                       Cost per batch (Rs)  12,745   13,708    963</code></pre>
+<p>Lime came out at 52.12 wt % (the remainder). Today's recipe meets the specification but costs <strong>₹ 940 per dry tonne more</strong> than the optimum (₹ 963 per as-received tonne and per 1,000 kg batch).</p>
+<p>If instead you fix <strong>all five</strong> materials at their rounded shares, the scenario has no recipe, and the diagnosis says why (real run):</p>
+<pre><code>  - The minimum usage limits add up to 100.01 % of the blend, more than 100 % (Lime min 52.13 %, Calcined dolomite min 4.05 %, Calcined bauxite min 20.75 %, Raw bauxite min 20.56 %, Fluorspar min 2.52 %).</code></pre>
+<p>If today's recipe does not meet one of the limits, the "current recipe" scenario is also infeasible, and its diagnosis names the limit it fails. That is useful to know too.</p>
+<h3 id="57-checklist-before-your-first-real-run">5.7 Checklist before your first real run</h3>
+<ul>
+<li><span class="checkbox">&#9744;</span>The workbook is in <code>data\</code>, not in <code>templates\</code> or elsewhere.
+</li>
+<li><span class="checkbox">&#9744;</span>Every raw material that could be used is listed, with its <strong>landed</strong> cost and the right <code>Price_basis</code>.
+</li>
+<li><span class="checkbox">&#9744;</span>Moisture and LOI are filled in for every material (blank means 0).
+</li>
+<li><span class="checkbox">&#9744;</span>Analyses are averages of recent lots, on a dry basis, and every component cell that should have a value has one (especially trace elements: P, S). A component that was analysed and is absent has a <strong>0</strong>, not a blank; no "not analysed" warning.
+</li>
+<li><span class="checkbox">&#9744;</span>Each material adds up to about 100 wt % (components + LOI); no total warning.
+</li>
+<li><span class="checkbox">&#9744;</span>Every limit on the customer's specification has a row in Specs, with the value in the right column (Min or Max), in wt % (not ppm).
+</li>
+<li><span class="checkbox">&#9744;</span><code>Spec_basis</code> matches the customer's specification.
+</li>
+<li><span class="checkbox">&#9744;</span><code>Batch_size_kg</code> is the as-received batch weight; <code>Scale_resolution_kg</code> matches your scale.
+</li>
+<li><span class="checkbox">&#9744;</span>Product- or customer-specific limits and bans are in UsageLimits, not in Specs.
+</li>
+<li><span class="checkbox">&#9744;</span>After the run: read the Spec check sheet and confirm that <strong>every</strong> customer limit is listed (<a href="#74-spec-check">7.4</a>).
+</li></ul>
+<hr>
+<h2 id="6-running-the-tool">6. Running the tool</h2>
+<h3 id="61-the-command">6.1 The command</h3>
+<ol>
+<li><strong>Close the workbook in Excel</strong>, and close the previous report of the same product if it is open.
+</li>
+<li>Open PowerShell in the tool's folder (<a href="#33-open-powershell-in-the-tools-folder">3.3</a>).
+</li>
+<li>Activate the environment (<a href="#35-activate-the-virtual-environment">3.5</a>):
+</li></ol>
+<pre><code>.\.venv\Scripts\Activate.ps1</code></pre>
+<ol start="4">
+<li>Run the tool on your workbook. For a layout A workbook:
+</li></ol>
+<pre><code>python run.py data\Slag_SS45.xlsx</code></pre>
+<p>For a layout B product, add the master raw-material file:</p>
+<pre><code>python run.py data\Slag_SS45.xlsx --raw-materials data\Raw_materials.xlsx</code></pre>
+<p>(In this guide these two commands were verified with the example workbooks in the same positions: <code>python run.py templates\Test2_synthetic_slag_dry.xlsx</code>, and <code>python run.py templates\Test2_product_only.xlsx --raw-materials templates\Example_master_raw_materials.xlsx</code>.)</p>
+<ol start="5">
+<li>Read the screen (<a href="#65-reading-the-screen">6.5</a>), then open the report.
+</li></ol>
+<p>If a path contains a space, put it in quotes: <code>python run.py &quot;data\SS45 slag.xlsx&quot;</code>.</p>
+<h3 id="62-options">6.2 Options</h3>
+<p><code>python run.py --help</code> lists them (real output):</p>
+<pre><code>usage: run.py [-h] [--raw-materials RAW_MATERIALS_FILE] [--output OUTPUT_PATH]
+              [--quiet]
+              product_file
+
+Least-cost blend optimizer: find the cheapest raw material mix that meets the
+specs.
+
+positional arguments:
+  product_file          product workbook (.xlsx)
+
+options:
+  -h, --help            show this help message and exit
+  --raw-materials RAW_MATERIALS_FILE
+                        master raw-material workbook, if RawMaterials is not
+                        in the product workbook
+  --output OUTPUT_PATH  report workbook to write (default:
+                        output\&lt;product&gt;_result.xlsx)
+  --quiet               do not print the summary</code></pre>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Option</th>
+<th>What it does</th>
+<th>Example</th>
+</tr></thead>
+<tbody>
+<tr><td><em>(product file)</em></td><td>The workbook to run. Always first.</td><td><code>data\Slag_SS45.xlsx</code></td></tr>
+<tr><td><code>--raw-materials</code></td><td>The master raw-material workbook (layout B)</td><td><code>--raw-materials data\Raw_materials.xlsx</code></td></tr>
+<tr><td><code>--output</code></td><td>The name and place of the report</td><td><code>--output output\Slag_SS45_June.xlsx</code></td></tr>
+<tr><td><code>--quiet</code></td><td>Print only where the report was written, not the summary</td><td><code>--quiet</code></td></tr>
+<tr><td><code>--help</code></td><td>Show the list above</td><td><code>--help</code></td></tr>
+</tbody></table></div>
+<h3 id="63-where-the-report-goes">6.3 Where the report goes</h3>
+<p>By default the report is <code>output\&lt;name of the product file&gt;_result.xlsx</code>, and the <code>.lp</code> file (<a href="#712-the-lp-file">7.12</a>) is next to it with the same name and the extension <code>.lp</code>. For <code>templates\Test1_hand_worked.xlsx</code> these are <code>output\Test1_hand_worked_result.xlsx</code> and <code>output\Test1_hand_worked_result.lp</code>. Running the same product again <strong>overwrites</strong> them.</p>
+<p>To keep a history, put the date in the name with <code>--output</code>. PowerShell can insert today's date for you:</p>
+<pre><code>python run.py templates\Test2_synthetic_slag_dry.xlsx --output &quot;output\Test2_synthetic_slag_dry_$(Get-Date -Format yyyy-MM-dd).xlsx&quot; --quiet</code></pre>
+<p>Real output:</p>
+<pre><code>Report written to: output\Test2_synthetic_slag_dry_2026-10-26.xlsx
+LP file:           output\Test2_synthetic_slag_dry_2026-10-26.lp</code></pre>
+<h3 id="64-time-savers">6.4 Time-savers</h3>
+<ul>
+<li><strong>Tab completes names.</strong> Type the start of a file or folder name, e.g. <code>python run.py data\Sl</code>, and press Tab. PowerShell completes it, so you avoid typing errors. Press Tab again to cycle through matches.
+</li>
+<li><strong>↑ repeats a command.</strong> Press the up-arrow key to bring back the previous command, change it if needed, and press Enter.
+</li>
+<li><strong>Close the files in Excel first.</strong> If the report from an earlier run is open in Excel, the tool cannot overwrite it (real output):
+</li></ul>
+<pre><code>Could not write the report: [Errno 13] Permission denied: &#x27;D:\\VS Python\\Cost Optimizer\\output\\Test1_hand_worked_result.xlsx&#x27;
+If the report is open in Excel, close it and run again.</code></pre>
+<ul>
+<li><strong>Run from the tool's folder.</strong> The commands in this guide assume the PowerShell window is in the tool's folder. If you type <code>run.py</code> wrongly, or are in another folder, Python says (real output, with <code>rn.py</code> typed by mistake):
+</li></ul>
+<pre><code>python: can&#x27;t open file &#x27;D:\\VS Python\\Cost Optimizer\\rn.py&#x27;: [Errno 2] No such file or directory</code></pre>
+<h3 id="65-reading-the-screen">6.5 Reading the screen</h3>
+<p>A run ends in one of three ways. <strong>The details are always printed above the last lines</strong>, so scroll up if the window is small.</p>
+<p><strong>1. A recipe was found.</strong> The summary starts with the product, the status <code>Optimal</code> and the cost, and ends with where the report was written. (Test 1, see <a href="#13-the-whole-idea-on-one-page-test-1">1.3</a>.)</p>
+<p><strong>2. Errors: nothing was solved.</strong> If the workbook has errors, the tool lists every error and warning and stops. Real output for <code>templates\Broken_example.xlsx</code>, an example workbook with nine deliberate mistakes:</p>
+<pre><code>9 input error(s) found:
+  - RawMaterials (Broken_example.xlsx) row 3 &#x27;Lime&#x27;: duplicate name (already used in row 2; names must be unique, ignoring case).
+  - RawMaterials (Broken_example.xlsx) row 4 &#x27;Calcined dolomite&#x27;, Cost_Rs_per_t: &#x27;8,500 Rs&#x27; is not a number. Use a number, or leave the cell blank.
+  - RawMaterials (Broken_example.xlsx) row 5 &#x27;Calcined bauxite&#x27;, Price_basis: &#x27;wet&#x27; is not allowed; use one of as_received, dry.
+  - RawMaterials (Broken_example.xlsx) row 6 &#x27;Raw bauxite&#x27;, Moisture_%: -6 is negative; it must be 0 or more.
+  - Specs (Broken_example.xlsx) row 2 &#x27;CaO&#x27;: after the margin the internal range is empty: Min + margin = 54 is greater than Max - margin = 52. Reduce the margin.
+  - Specs (Broken_example.xlsx) row 3 &#x27;Al2O3&#x27;, Numerator: component &#x27;AL2O3&#x27; is not a column in RawMaterials. Did you mean &#x27;Al2O3&#x27;? (Component names must match exactly.)
+  - Specs (Broken_example.xlsx) row 5 &#x27;MgO&#x27;: give a Min, a Max, or both.
+  - Settings (Broken_example.xlsx) row 3 &#x27;Spec_basis&#x27;: &#x27;calcined&#x27; is not allowed; use one of dry, as_received, ignited.
+  - UsageLimits (Broken_example.xlsx) row 2 &#x27;Flourspar&#x27;: not a raw material in RawMaterials. Did you mean &#x27;Fluorspar&#x27;?
+1 warning(s):
+  - RawMaterials &#x27;Lime&#x27;: components + LOI = 87.34 %, outside the expected 97-103 % for the &#x27;dry_incl_loi&#x27; lab convention. Neither convention fits (components alone = 83.84 %, components + LOI = 87.34 %): check for a missing component column, a typing error or a missing LOI.
+Nothing was solved. Correct the workbook and run again.</code></pre>
+<p>Each message names the sheet, the file, the Excel row number and the item. Correct them all in Excel, save, and run again. No report is written.</p>
+<p><strong>3. Warnings: the run continues.</strong> Warnings appear near the top of the summary, under <code>Input warnings</code>, and in the report's Summary sheet. Read them: a warning is often a sign of a typing error. Example in <a href="#54-settings">5.4</a>.</p>
+<p><strong>4. No recipe exists.</strong> The status is <code>Infeasible</code>, followed by an explanation. The report is still written. See <a href="#8-when-there-is-no-recipe-infeasible">chapter 8</a>.</p>
+<p><strong>Exit codes.</strong> When the tool finishes it also returns a number to Windows, the <strong>exit code</strong>. You only need it if you run the tool from a batch file or a script that should react to the result:</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Exit code</th>
+<th>Meaning</th>
+</tr></thead>
+<tbody>
+<tr><td>0</td><td>A recipe was found for the base case.</td></tr>
+<tr><td>1</td><td>Input errors: nothing was solved (case 2 above). Also when the report could not be written, e.g. because it is open in Excel.</td></tr>
+<tr><td>2</td><td>No recipe for the base case: it is infeasible (case 4 above). The report, with the diagnosis, is still written.</td></tr>
+</tbody></table></div>
+<p>A WhatIf scenario that has no recipe does not change the exit code; it is reported in its own sheet. To see the exit code of the last run, type <code>$LASTEXITCODE</code> in PowerShell (in a Command Prompt batch file, <code>%errorlevel%</code>). Real example, after running <code>templates\Test1_infeasible_Al2O3_min_45.xlsx</code>:</p>
+<pre><code>PS D:\VS Python\Cost Optimizer&gt; $LASTEXITCODE
+2</code></pre>
+<hr>
+<h2 id="7-reading-the-report">7. Reading the report</h2>
+<p>The report is an Excel workbook with these sheets, in this order:</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Sheet</th>
+<th>When it appears</th>
+</tr></thead>
+<tbody>
+<tr><td>Summary</td><td>Always</td></tr>
+<tr><td>Recipe, Composition, Spec check, Cost, Shadow prices, Reduced costs</td><td>When a recipe was found</td></tr>
+<tr><td>Diagnosis</td><td>Only when no recipe exists</td></tr>
+<tr><td>Price ranges</td><td>Always (empty, with a note, when no recipe exists)</td></tr>
+<tr><td>Scenarios, and one sheet per scenario</td><td>Only when the product workbook has a WhatIf sheet</td></tr>
+</tbody></table></div>
+<p>General points:</p>
+<ul>
+<li>Numbers are calculated at full precision and only <strong>rounded for display</strong>: wt % to 2 decimals (spec limits get one more decimal than you typed, e.g. P 0.030), kg to the scale resolution, ₹ to whole rupees. An Excel cell holds the full value; widen the column or change the number format to see more.
+</li>
+<li>An exact half is always <strong>rounded up</strong>, the same way on screen and in Excel: 78.895 shows as 78.90, and ₹ 12,744.5 as ₹ 12,745.
+</li>
+<li>An <strong>empty cell</strong> means "not applicable" (e.g. no minimum).
+</li>
+<li>Short notes in <em>italics</em> under each table explain it.
+</li>
+<li>All excerpts below are from real runs of <code>templates\Test2_synthetic_slag_dry.xlsx</code> unless stated otherwise.
+</li></ul>
+<h3 id="71-summary">7.1 Summary</h3>
+<p>What was run, and how it went.</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Item</th>
+<th>Value</th>
+</tr></thead>
+<tbody>
+<tr><td>Product</td><td>Synthetic slag (Test 2, dry basis)</td></tr>
+<tr><td>Solver status</td><td>Optimal</td></tr>
+<tr><td>Spec basis</td><td>dry</td></tr>
+<tr><td>Lab analysis convention</td><td>dry_incl_loi</td></tr>
+<tr><td>Batch size</td><td>1,000.0 kg as received</td></tr>
+<tr><td>Scale resolution</td><td>0.1 kg</td></tr>
+<tr><td>Raw materials read from</td><td>templates\Test2_synthetic_slag_dry.xlsx</td></tr>
+<tr><td>Specs read from</td><td>templates\Test2_synthetic_slag_dry.xlsx</td></tr>
+<tr><td>Input warnings</td><td>0</td></tr>
+</tbody></table></div>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Item</th>
+<th>Meaning</th>
+</tr></thead>
+<tbody>
+<tr><td>Product</td><td><code>Product_name</code> from Settings</td></tr>
+<tr><td>Solver status</td><td><code>Optimal</code>: the cheapest recipe was found. <code>Infeasible</code>: no recipe meets every limit (see the Diagnosis sheet).</td></tr>
+<tr><td>Spec basis</td><td><code>Spec_basis</code> from Settings</td></tr>
+<tr><td>Lab analysis convention</td><td>How analyses were read (<a href="#52-rawmaterials">5.2</a>)</td></tr>
+<tr><td>Batch size, Scale resolution</td><td>From Settings</td></tr>
+<tr><td>Raw materials read from, Specs read from</td><td>The files used (useful for layout B)</td></tr>
+<tr><td>Input warnings</td><td>The number of warnings; each one follows as "Warning 1", "Warning 2" …</td></tr>
+</tbody></table></div>
+<p><strong>Use it</strong> to confirm you ran the right file with the right basis, and to read any warnings.</p>
+<h3 id="72-recipe">7.2 Recipe</h3>
+<p>The recipe and the weigh sheet.</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Raw material</th>
+<th>Dry blend (wt %)</th>
+<th>Dry mass (kg/batch)</th>
+<th>As-received mass (kg/batch)</th>
+<th>Moisture (%)</th>
+<th>Price as entered (Rs/t)</th>
+<th>Price basis</th>
+<th>Dry cost (Rs/dry t)</th>
+<th>Cost share (Rs/dry t of blend)</th>
+</tr></thead>
+<tbody>
+<tr><td>Lime</td><td>52.09</td><td>510.5</td><td>513.1</td><td>0.50</td><td>9,000</td><td>as_received</td><td>9,045</td><td>4,712</td></tr>
+<tr><td>Lime fines</td><td>0.00</td><td>0.0</td><td>0.0</td><td>1.00</td><td>6,500</td><td>as_received</td><td>6,566</td><td>0</td></tr>
+<tr><td>Calcined dolomite</td><td>2.60</td><td>25.5</td><td>25.6</td><td>0.50</td><td>8,500</td><td>as_received</td><td>8,543</td><td>222</td></tr>
+<tr><td>Calcined bauxite</td><td>17.13</td><td>167.9</td><td>168.7</td><td>0.50</td><td>32,000</td><td>dry</td><td>32,000</td><td>5,481</td></tr>
+<tr><td>Raw bauxite</td><td>25.83</td><td>253.1</td><td>269.3</td><td>6.00</td><td>7,000</td><td>as_received</td><td>7,447</td><td>1,923</td></tr>
+<tr><td>Fluorspar</td><td>2.35</td><td>23.1</td><td>23.3</td><td>1.00</td><td>28,000</td><td>as_received</td><td>28,283</td><td>665</td></tr>
+<tr><td>TOTAL</td><td>100.00</td><td>980.1</td><td>1,000.0</td><td></td><td></td><td></td><td></td><td>13,004</td></tr>
+</tbody></table></div>
+<p><em>Batch = 1,000.0 kg AS RECEIVED (what is weighed into the mixer).</em> <em>kg are rounded to the scale resolution (0.1 kg); each kg column adds up exactly to its TOTAL.</em></p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Column</th>
+<th>Meaning</th>
+</tr></thead>
+<tbody>
+<tr><td>Raw material</td><td>Every raw material, including those not used (0.00)</td></tr>
+<tr><td>Dry blend (wt %)</td><td><strong>The recipe</strong>: the share of each material in the dry blend</td></tr>
+<tr><td>Dry mass (kg/batch)</td><td>The same, as dry kg in one batch</td></tr>
+<tr><td>As-received mass (kg/batch)</td><td><strong>What the operator weighs</strong>: kg as delivered, including moisture. Adds up to <code>Batch_size_kg</code>.</td></tr>
+<tr><td>Moisture (%)</td><td>From RawMaterials</td></tr>
+<tr><td>Price as entered (Rs/t), Price basis</td><td>From RawMaterials</td></tr>
+<tr><td>Dry cost (Rs/dry t)</td><td>The price converted to a dry tonne</td></tr>
+<tr><td>Cost share (Rs/dry t of blend)</td><td>Share × dry cost: each material's contribution to the blend cost. The TOTAL is the blend cost.</td></tr>
+</tbody></table></div>
+<p><strong>Dry and as-received kg.</strong> The batch size is <strong>as received</strong>: 1,000.0 kg is weighed in total. That batch contains only 980.1 kg of dry material, because the rest is moisture. Raw bauxite, with 6 wt % moisture, needs 269.3 kg as received to supply 253.1 kg dry (253.1 ÷ 0.94 = 269.3).</p>
+<p><strong>Rounding to the scale.</strong> Each kg is rounded to <code>Scale_resolution_kg</code>. Rounded figures do not always add up to the batch size, so the tool puts the rounding difference on the <strong>largest</strong> material and says so. With a 5 kg scale (real run on a copy of Test 2 with <code>Scale_resolution_kg</code> = 5):</p>
+<pre><code>       Raw material Dry blend (wt %) Dry mass (kg/batch) As-received mass (kg/batch)
+               Lime            52.09               505.0                       510.0
+         Lime fines             0.00                 0.0                         0.0
+  Calcined dolomite             2.60                25.0                        25.0
+   Calcined bauxite            17.13               170.0                       170.0
+        Raw bauxite            25.83               255.0                       270.0
+          Fluorspar             2.35                25.0                        25.0
+              TOTAL           100.00               980.0                     1,000.0
+  kg are rounded to the scale resolution (5 kg); each kg column adds up exactly to its TOTAL.
+  Dry mass (kg/batch): rounding difference of -5.0 kg put on Lime (the largest).
+  As-received mass (kg/batch): rounding difference of -5.0 kg put on Lime (the largest).</code></pre>
+<p><strong>Use it</strong>: the As-received column is the weigh sheet for the shop floor; the Cost share column shows where the money goes.</p>
+<h3 id="73-composition">7.3 Composition</h3>
+<p>The blend's analysis.</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Component</th>
+<th>Basis</th>
+<th>Blend (wt %)</th>
+</tr></thead>
+<tbody>
+<tr><td>CaO</td><td>dry</td><td>50.00</td></tr>
+<tr><td>SiO2</td><td>dry</td><td>4.38</td></tr>
+<tr><td>Al2O3</td><td>dry</td><td>30.00</td></tr>
+<tr><td>MgO</td><td>dry</td><td>1.81</td></tr>
+<tr><td>CaF2</td><td>dry</td><td>2.00</td></tr>
+<tr><td>Fe2O3</td><td>dry</td><td>1.66</td></tr>
+<tr><td>TiO2</td><td>dry</td><td>1.25</td></tr>
+<tr><td>S</td><td>dry</td><td>0.040</td></tr>
+<tr><td>P</td><td>dry</td><td>0.030</td></tr>
+<tr><td>Sum of components</td><td>dry</td><td>91.17</td></tr>
+<tr><td>LOI</td><td>dry</td><td>8.29</td></tr>
+<tr><td>Moisture</td><td>as_received</td><td>1.99</td></tr>
+</tbody></table></div>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Column or row</th>
+<th>Meaning</th>
+</tr></thead>
+<tbody>
+<tr><td>Component</td><td>Every component column of RawMaterials, limited or not (TiO2 has no limit here)</td></tr>
+<tr><td>Basis</td><td>The spec basis for the components; LOI is always on a dry basis, moisture always as received</td></tr>
+<tr><td>Blend (wt %)</td><td>The blend's content. A component limited by its own spec row is shown with one more decimal than the limit you typed (P 0.030).</td></tr>
+<tr><td>Sum of components</td><td>A check: on a dry basis, Sum of components + LOI should be about 100 wt % (here 91.17 + 8.29 = 99.46)</td></tr>
+<tr><td>LOI</td><td>The blend's loss on ignition, wt % dry basis</td></tr>
+<tr><td>Moisture</td><td>The blend's free moisture, wt % as received</td></tr>
+</tbody></table></div>
+<p><strong>Use it</strong> to compare with the lab analysis of a trial batch (<a href="#10-before-using-a-recipe-in-production">chapter 10</a>). Make sure the lab reports on the same basis.</p>
+<h3 id="74-spec-check">7.4 Spec check</h3>
+<p>Every spec row, with the customer limit, the target and the value achieved.</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Spec</th>
+<th>Limits</th>
+<th>Basis</th>
+<th>Customer Min</th>
+<th>Customer Max</th>
+<th>Margin</th>
+<th>Target Min</th>
+<th>Target Max</th>
+<th>Achieved</th>
+<th>Status</th>
+<th>Slack to target</th>
+</tr></thead>
+<tbody>
+<tr><td>CaO</td><td>CaO</td><td>dry</td><td>50.00</td><td>56.00</td><td>0.00</td><td>50.00</td><td>56.00</td><td>50.00</td><td>Binding (Min)</td><td>0.00</td></tr>
+<tr><td>Al2O3</td><td>Al2O3</td><td>dry</td><td>30.00</td><td>38.00</td><td>0.00</td><td>30.00</td><td>38.00</td><td>30.00</td><td>Binding (Min)</td><td>0.00</td></tr>
+<tr><td>SiO2</td><td>SiO2</td><td>dry</td><td></td><td>6.00</td><td>0.00</td><td></td><td>6.00</td><td>4.38</td><td>Slack</td><td>1.62</td></tr>
+<tr><td>MgO</td><td>MgO</td><td>dry</td><td></td><td>8.00</td><td>0.00</td><td></td><td>8.00</td><td>1.81</td><td>Slack</td><td>6.19</td></tr>
+<tr><td>CaF2</td><td>CaF2</td><td>dry</td><td>2.00</td><td>5.00</td><td>0.00</td><td>2.00</td><td>5.00</td><td>2.00</td><td>Binding (Min)</td><td>0.00</td></tr>
+<tr><td>Fe2O3</td><td>Fe2O3</td><td>dry</td><td></td><td>2.00</td><td>0.00</td><td></td><td>2.00</td><td>1.66</td><td>Slack</td><td>0.34</td></tr>
+<tr><td>S</td><td>S</td><td>dry</td><td></td><td>0.080</td><td>0.000</td><td></td><td>0.080</td><td>0.040</td><td>Slack</td><td>0.040</td></tr>
+<tr><td>P</td><td>P</td><td>dry</td><td></td><td>0.030</td><td>0.000</td><td></td><td>0.030</td><td>0.030</td><td>Binding (Max)</td><td>0.000</td></tr>
+<tr><td>Basicity</td><td>CaO / SiO2</td><td>ratio (any basis)</td><td>8.00</td><td></td><td>0.00</td><td>8.00</td><td></td><td>11.40</td><td>Slack</td><td>3.40</td></tr>
+</tbody></table></div>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Column</th>
+<th>Meaning</th>
+</tr></thead>
+<tbody>
+<tr><td>Spec</td><td>The spec row's Name</td></tr>
+<tr><td>Limits</td><td>What is limited, as typed: a component, a sum, a ratio (<code>CaO / SiO2</code>) or an expression with factors</td></tr>
+<tr><td>Basis</td><td>The spec basis, or "ratio (any basis)"</td></tr>
+<tr><td>Customer Min, Customer Max</td><td>The customer's limits, as typed in Specs</td></tr>
+<tr><td>Margin</td><td>Your safety margin</td></tr>
+<tr><td>Target Min, Target Max</td><td>What the tool aimed for: Min + margin and Max − margin</td></tr>
+<tr><td>Achieved</td><td>The blend's value</td></tr>
+<tr><td>Status</td><td><code>Binding (Min)</code>: sitting on the minimum target; <code>Binding (Max)</code>: on the maximum target; <code>Slack</code>: room to spare. (If Min equals Max, <code>Binding (Min and Max)</code>.)</td></tr>
+<tr><td>Slack to target</td><td>How far the achieved value is from the nearest target, in the spec's own unit</td></tr>
+</tbody></table></div>
+<p><strong>Read this sheet after every run</strong>, and confirm that <strong>every limit on the customer's specification is listed</strong>. A missing spec row gives <strong>no error</strong>: the tool simply optimises without it. Real example: Test 1 with the Al2O3 row deleted from Specs. The tool chooses 100 % Lime, because nothing asks for Al2O3:</p>
+<pre><code>Cost: Rs 9,000 per dry t of blend | Rs 9,000 per as-received t | Rs 9,000 per batch
+
+Recipe (batch 1,000.0 kg as received, 1,000.0 kg dry):
+      Raw material Dry blend (wt %) Dry mass (kg/batch) As-received mass (kg/batch)
+              Lime           100.00             1,000.0                     1,000.0
+  Calcined alumina             0.00                 0.0                         0.0
+           Bauxite             0.00                 0.0                         0.0
+             TOTAL           100.00             1,000.0                     1,000.0
+...
+Spec check:
+  Spec Limits Basis Target Min Target Max Achieved Status
+   CaO    CaO   dry      50.00               92.00  Slack
+  SiO2   SiO2   dry                  6.00     2.00  Slack</code></pre>
+<p>Also check that each value is in the right column: a maximum typed in the Min column changes the problem completely (see <a href="#11-troubleshooting">11. Troubleshooting</a>).</p>
+<h3 id="75-cost">7.5 Cost</h3>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Item</th>
+<th>Value</th>
+<th>Unit</th>
+</tr></thead>
+<tbody>
+<tr><td>Cost (Rs per dry tonne of blend)</td><td>13,004</td><td>Rs/dry t</td></tr>
+<tr><td>Cost (Rs per as-received tonne of blend)</td><td>12,745</td><td>Rs/as-received t</td></tr>
+<tr><td>Batch size (kg, as received)</td><td>1,000.0</td><td>kg</td></tr>
+<tr><td>Batch dry mass (kg)</td><td>980.1</td><td>kg</td></tr>
+<tr><td>Cost per batch (Rs)</td><td>12,745</td><td>Rs</td></tr>
+</tbody></table></div>
+<ul>
+<li><strong>Per dry tonne</strong> is what the tool minimises; it is the figure to compare between recipes and scenarios.
+</li>
+<li><strong>Per as-received tonne</strong> is lower, because an as-received tonne contains some moisture. It is the cost of a tonne as weighed and shipped.
+</li>
+<li><strong>Per batch</strong> is the cost of one batch of <code>Batch_size_kg</code> (here 1,000 kg as received).
+</li></ul>
+<h3 id="76-shadow-prices">7.6 Shadow prices</h3>
+<p>The <strong>shadow price</strong> of a binding limit is how much the blend would get cheaper, in ₹ per dry tonne of blend, if the customer relaxed that limit a little: lowering a minimum or raising a maximum. Tightening it costs the same amount per step.</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Constraint</th>
+<th>Type</th>
+<th>Limits</th>
+<th>Customer limit</th>
+<th>Internal target</th>
+<th>Limit unit</th>
+<th>Relax by</th>
+<th>Saving per 1 unit (Rs/dry t)</th>
+<th>Step</th>
+<th>Saving per step (Rs/dry t)</th>
+</tr></thead>
+<tbody>
+<tr><td>CaO_min</td><td>Composition</td><td>CaO</td><td>50.00</td><td>50.00</td><td>wt % (dry basis)</td><td>lowering the Min</td><td>14</td><td>1</td><td>14</td></tr>
+<tr><td>Al2O3_min</td><td>Composition</td><td>Al2O3</td><td>30.00</td><td>30.00</td><td>wt % (dry basis)</td><td>lowering the Min</td><td>637</td><td>1</td><td>637</td></tr>
+<tr><td>CaF2_min</td><td>Composition</td><td>CaF2</td><td>2.00</td><td>2.00</td><td>wt % (dry basis)</td><td>lowering the Min</td><td>327</td><td>1</td><td>327</td></tr>
+<tr><td>P_max</td><td>Composition</td><td>P</td><td>0.030</td><td>0.030</td><td>wt % (dry basis)</td><td>raising the Max</td><td>735,134</td><td>0.01</td><td>7,351</td></tr>
+</tbody></table></div>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Column</th>
+<th>Meaning</th>
+</tr></thead>
+<tbody>
+<tr><td>Constraint</td><td>The limit: <code>&lt;spec Name&gt;_min</code> or <code>_max</code>, or <code>&lt;raw material&gt; max use</code> / <code>min use</code> for a usage limit</td></tr>
+<tr><td>Type</td><td><code>Composition</code>, <code>Ratio</code> or <code>Usage limit</code></td></tr>
+<tr><td>Limits</td><td>What is limited</td></tr>
+<tr><td>Customer limit, Internal target</td><td>The limit as typed, and with the margin applied</td></tr>
+<tr><td>Limit unit</td><td>The unit of one step</td></tr>
+<tr><td>Relax by</td><td><code>lowering the Min</code> or <code>raising the Max</code></td></tr>
+<tr><td>Saving per 1 unit (Rs/dry t)</td><td>Saving for relaxing by 1 wt % (or 1 ratio unit, or 1 wt % of a usage limit)</td></tr>
+<tr><td>Step</td><td>A step sized to the limit: 1 for limits of 1 or more; below 1, one unit of the limit's first significant decimal (0.03 → 0.01, 0.5 → 0.1, 0.005 → 0.001)</td></tr>
+<tr><td>Saving per step (Rs/dry t)</td><td>Saving for relaxing by one step. <strong>Use this column</strong>: for P, 1 wt % is meaningless, 0.01 wt % is a real step.</td></tr>
+</tbody></table></div>
+<p>Only binding limits appear. A slack limit has a shadow price of 0.</p>
+<p><strong>Valid only near the current limit.</strong> The saving holds while the same limits stay binding. Further away the recipe changes, and so does the saving. Two real checks on Test 2, done as WhatIf scenarios:</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Change</th>
+<th>Predicted from the shadow price</th>
+<th>Real saving (Scenarios sheet)</th>
+</tr></thead>
+<tbody>
+<tr><td>Al2O3 Min 30 → 29</td><td>1 step × ₹ 637 = ₹ 637</td><td>₹ 637 per dry t</td></tr>
+<tr><td>P Max 0.030 → 0.031</td><td>0.1 step × ₹ 7,351 = ₹ 735</td><td>₹ 550 per dry t</td></tr>
+</tbody></table></div>
+<p>The Al2O3 prediction holds exactly; for P the recipe changes before even 0.001 wt % is reached. So use shadow prices to see <strong>which limits are expensive</strong>, and use a WhatIf scenario to get the exact figure for a specific change.</p>
+<p><strong>In customer discussions.</strong> Shadow prices show which limits are worth discussing. Here P is by far the most expensive limit per step, Al2O3 next, and CaO costs almost nothing. To put a figure on a change, multiply the exact saving by the annual quantity: if you sell 10,000 dry tonnes a year, accepting Al2O3 29 instead of 30 wt % is worth 10,000 × ₹ 637 = ₹ 63,70,000 (₹ 63.7 lakh) a year.</p>
+<p>The notes under the table also warn that for ratio limits and limits on an ignited or as-received basis the saving drifts slightly as the limit moves, even before the recipe changes.</p>
+<h3 id="77-reduced-costs">7.7 Reduced costs</h3>
+<p>For each raw material <strong>not used</strong> in the recipe: how much cheaper it would have to be before it is worth using.</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Raw material</th>
+<th>Price as entered (Rs/t)</th>
+<th>Price basis</th>
+<th>Reduced cost (Rs/dry t)</th>
+<th>Price drop needed (Rs/t as entered)</th>
+<th>Enters below (Rs/t as entered)</th>
+<th>Note</th>
+</tr></thead>
+<tbody>
+<tr><td>Lime fines</td><td>6,500</td><td>as_received</td><td>4,674</td><td>4,628</td><td>1,872</td><td></td></tr>
+</tbody></table></div>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Column</th>
+<th>Meaning</th>
+</tr></thead>
+<tbody>
+<tr><td>Raw material</td><td>An unused raw material (with no minimum use)</td></tr>
+<tr><td>Price as entered (Rs/t), Price basis</td><td>From RawMaterials</td></tr>
+<tr><td>Reduced cost (Rs/dry t)</td><td>The price drop needed, per <strong>dry</strong> tonne</td></tr>
+<tr><td>Price drop needed (Rs/t as entered)</td><td>The same drop on the material's own price basis (here per tonne as received, with 1 wt % moisture)</td></tr>
+<tr><td>Enters below (Rs/t as entered)</td><td>The price below which the material would come into the recipe</td></tr>
+<tr><td>Note</td><td>Explains special cases: a material banned by a usage limit ("Banned by its usage limit (Max 0 %)"), one that would be used if the ban were lifted, one that is "Break-even: another recipe of the same cost uses it", or one that "Would not be used even if free"</td></tr>
+</tbody></table></div>
+<p>In Test 2, Lime fines would enter the recipe only below ₹ 1,872 per tonne, far below its ₹ 6,500. The Price ranges sheet gives the same price as 1,873: that search works to ₹ 1, so the two can differ by ₹ 1.</p>
+<p>When every raw material is used, the sheet is empty with the note <em>None: every raw material is used.</em></p>
+<p><strong>Use it</strong> to answer a supplier: "at what price would your material be worth using?"</p>
+<h3 id="78-diagnosis">7.8 Diagnosis</h3>
+<p>This sheet appears <strong>only when no recipe exists</strong>. It lists the limits that have to move.</p>
+<p>Real example (<code>templates\Test2_synthetic_slag_fluorspar_ban.xlsx</code>):</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Limit</th>
+<th>Limits</th>
+<th>Found by</th>
+<th>Customer limit</th>
+<th>Internal target</th>
+<th>Best achievable</th>
+<th>Change needed</th>
+<th>While holding</th>
+<th>Elastic model target</th>
+</tr></thead>
+<tbody>
+<tr><td>CaF2_min</td><td>CaF2</td><td>Pre-check</td><td>2.00</td><td>2.00</td><td>0.00</td><td>2.00</td><td>usage limits only</td><td></td></tr>
+<tr><td>CaF2_min</td><td>CaF2</td><td>Elastic model</td><td>2.00</td><td>2.00</td><td>0.00</td><td>2.00</td><td>all other limits</td><td>0.00</td></tr>
+<tr><td>Fluorspar max use</td><td>Fluorspar</td><td>Elastic model</td><td></td><td>0.00</td><td></td><td></td><td>usage limit</td><td></td></tr>
+</tbody></table></div>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Column</th>
+<th>Meaning</th>
+</tr></thead>
+<tbody>
+<tr><td>Limit</td><td>The limit involved</td></tr>
+<tr><td>Limits</td><td>What it limits</td></tr>
+<tr><td>Found by</td><td><code>Pre-check</code> (the limit cannot be met on its own) or <code>Elastic model</code> (it conflicts with other limits)</td></tr>
+<tr><td>Customer limit, Internal target</td><td>As in the Spec check</td></tr>
+<tr><td>Best achievable</td><td>The best value possible: with only the usage limits (pre-check), or with all the other limits held (elastic model)</td></tr>
+<tr><td>Change needed</td><td>How far the limit would have to move to the best achievable value</td></tr>
+<tr><td>While holding</td><td>What was kept in place when working out the best achievable value</td></tr>
+<tr><td>Elastic model target</td><td>Where the elastic model's suggested change would put this limit (blank if it would not move it)</td></tr>
+</tbody></table></div>
+<p>The plain-language explanation is written under the table, and also printed on screen. <a href="#8-when-there-is-no-recipe-infeasible">Chapter 8</a> explains how to read it.</p>
+<h3 id="79-price-ranges">7.9 Price ranges</h3>
+<p>For each raw material, taken on its own with all other prices unchanged: the price band within which <strong>today's recipe stays exactly the same</strong>. Inside the band only the cost changes; outside it, the tool would choose a different recipe.</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Raw material</th>
+<th>Price basis</th>
+<th>Current price (Rs/t)</th>
+<th>In recipe (wt %)</th>
+<th>Unchanged from (Rs/t)</th>
+<th>Unchanged up to (Rs/t)</th>
+<th>Note</th>
+</tr></thead>
+<tbody>
+<tr><td>Lime</td><td>as_received</td><td>9,000</td><td>52.09</td><td>8,500</td><td>13,199</td><td></td></tr>
+<tr><td>Lime fines</td><td>as_received</td><td>6,500</td><td>0.00</td><td>1,873</td><td></td><td>No upper limit found up to Rs 65,000 (10x the current price); Not used now; enters the recipe below Rs 1,873</td></tr>
+<tr><td>Calcined dolomite</td><td>as_received</td><td>8,500</td><td>2.60</td><td></td><td>9,000</td><td>No lower limit: unchanged down to Rs 0</td></tr>
+<tr><td>Calcined bauxite</td><td>dry</td><td>32,000</td><td>17.13</td><td>15,726</td><td></td><td>No upper limit found up to Rs 320,000 (10x the current price)</td></tr>
+<tr><td>Raw bauxite</td><td>as_received</td><td>7,000</td><td>25.83</td><td></td><td>17,223</td><td>No lower limit: unchanged down to Rs 0</td></tr>
+<tr><td>Fluorspar</td><td>as_received</td><td>28,000</td><td>2.35</td><td>517</td><td></td><td>No upper limit found up to Rs 280,000 (10x the current price)</td></tr>
+</tbody></table></div>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Column</th>
+<th>Meaning</th>
+</tr></thead>
+<tbody>
+<tr><td>Price basis, Current price (Rs/t)</td><td>As in RawMaterials; the band is on the same basis</td></tr>
+<tr><td>In recipe (wt %)</td><td>Today's share</td></tr>
+<tr><td>Unchanged from (Rs/t)</td><td>The lowest price with the same recipe. Blank: no lower limit (the recipe is the same down to ₹ 0).</td></tr>
+<tr><td>Unchanged up to (Rs/t)</td><td>The highest price with the same recipe. Blank: none found up to 10 times today's price.</td></tr>
+<tr><td>Note</td><td>Explains blanks and unused materials</td></tr>
+</tbody></table></div>
+<p>The bands are found by solving again at trial prices, accurate to ₹ 1 per tonne. A recipe counts as unchanged if no share moves by more than 0.01 wt % (0.1 kg in a 1,000 kg batch). In Test 1, Lime has the note <em>Recipe unchanged at every price tested (Rs 0 to 90,000)</em>: its share is fixed by the limits, whatever it costs.</p>
+<p>On screen the same table is printed without the Note column, and the notes follow under it. Test 1 (real run):</p>
+<pre><code>Price ranges (base case): today&#x27;s recipe stays the same while one price moves within this band
+      Raw material Price basis Current price (Rs/t) Unchanged from (Rs/t) Unchanged up to (Rs/t)
+              Lime         dry                9,000                                             
+  Calcined alumina         dry               30,000                13,271                       
+           Bauxite         dry               12,000                                       23,750
+  Notes:
+    Lime: Recipe unchanged at every price tested (Rs 0 to 90,000)
+    Calcined alumina: No upper limit found up to Rs 300,000 (10x the current price)
+    Bauxite: No lower limit: unchanged down to Rs 0</code></pre>
+<p><strong>Use it</strong> when a supplier changes a price. Example: if Raw bauxite rises from ₹ 7,000 to ₹ 9,000 per tonne, that is inside its band (up to ₹ 17,223), so the recipe stays the same and only the cost rises. Calcined dolomite above ₹ 9,000 would change the recipe; run the tool again (or a WhatIf scenario) to see how.</p>
+<p>When no recipe exists, the sheet is empty with the note <em>Not available: price ranges need a feasible base case (see the Diagnosis sheet).</em></p>
+<h3 id="710-scenarios">7.10 Scenarios</h3>
+<p>Appears when the product workbook has a WhatIf sheet: one row per scenario. Real run of <code>templates\Test2_synthetic_slag_with_what_if.xlsx</code>:</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Scenario</th>
+<th>Sheet</th>
+<th>Changes</th>
+<th>Status</th>
+<th>Cost (Rs/dry t)</th>
+<th>Change vs base (Rs/dry t)</th>
+</tr></thead>
+<tbody>
+<tr><td>Fluorspar dearer</td><td>Scenario Fluorspar dearer</td><td>Price Fluorspar 28,000 -&gt; 35,000</td><td>Optimal</td><td>13,170</td><td>166</td></tr>
+<tr><td>Looser P</td><td>Scenario Looser P</td><td>Spec Max P 0.0300 -&gt; 0.0350</td><td>Optimal</td><td>12,381</td><td>-623</td></tr>
+<tr><td>Capped bauxite</td><td>Scenario Capped bauxite</td><td>Spec Margin CaO 0.00 -&gt; 0.50; Usage Max (effective) Raw bauxite 100.00 -&gt; 20.00</td><td>Optimal</td><td>13,645</td><td>641</td></tr>
+<tr><td>No fluorspar</td><td>Scenario No fluorspar</td><td>Usage Max (effective) Fluorspar 100.00 -&gt; 0.00</td><td>Infeasible</td><td></td><td></td></tr>
+</tbody></table></div>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Column</th>
+<th>Meaning</th>
+</tr></thead>
+<tbody>
+<tr><td>Scenario</td><td>The name from the WhatIf sheet</td></tr>
+<tr><td>Sheet</td><td>The sheet with the details</td></tr>
+<tr><td>Changes</td><td>What the scenario changed, from → to. "(effective)" means the usage limit actually applied, after combining plant and product limits.</td></tr>
+<tr><td>Status</td><td><code>Optimal</code> or <code>Infeasible</code></td></tr>
+<tr><td>Cost (Rs/dry t)</td><td>The scenario's cost</td></tr>
+<tr><td>Change vs base (Rs/dry t)</td><td>Scenario minus base: <strong>negative = cheaper</strong> than the base case</td></tr>
+</tbody></table></div>
+<p>Reading this example: a dearer fluorspar adds ₹ 166 per dry tonne; accepting 0.035 wt % P saves ₹ 623; capping raw bauxite at 20 wt % with a 0.5 wt % CaO margin adds ₹ 641; banning fluorspar makes the product impossible.</p>
+<h3 id="711-scenario-sheets">7.11 Scenario sheets</h3>
+<p>One sheet per scenario, named <code>Scenario &lt;name&gt;</code>, with these tables one under another: changes, cost, recipe, spec check and binding limits, plus a diagnosis when the scenario is infeasible. Real excerpt from <code>Scenario Looser P</code>:</p>
+<p><strong>Looser P: changes</strong></p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Change</th>
+<th>Name</th>
+<th>Unit</th>
+<th>Base value</th>
+<th>Scenario value</th>
+</tr></thead>
+<tbody>
+<tr><td>Spec Max</td><td>P</td><td>wt % (dry basis)</td><td>0.0300</td><td>0.0350</td></tr>
+</tbody></table></div>
+<p><strong>Looser P: cost</strong></p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Item</th>
+<th>Unit</th>
+<th>Base</th>
+<th>Scenario</th>
+<th>Change</th>
+</tr></thead>
+<tbody>
+<tr><td>Solver status</td><td></td><td>Optimal</td><td>Optimal</td><td></td></tr>
+<tr><td>Cost (Rs per dry tonne of blend)</td><td>Rs/dry t</td><td>13,004</td><td>12,381</td><td>-623</td></tr>
+<tr><td>Cost (Rs per as-received tonne of blend)</td><td>Rs/as-received t</td><td>12,745</td><td>12,118</td><td>-627</td></tr>
+<tr><td>Cost per batch (Rs)</td><td>Rs</td><td>12,745</td><td>12,118</td><td>-627</td></tr>
+</tbody></table></div>
+<p><strong>Looser P: recipe</strong></p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Raw material</th>
+<th>Base (wt %)</th>
+<th>Scenario (wt %)</th>
+<th>Change (wt %)</th>
+<th>Base (kg/batch, as received)</th>
+<th>Scenario (kg/batch, as received)</th>
+</tr></thead>
+<tbody>
+<tr><td>Lime</td><td>52.09</td><td>34.57</td><td>-17.52</td><td>513.1</td><td>340.0</td></tr>
+<tr><td>Lime fines</td><td>0.00</td><td>20.00</td><td>20.00</td><td>0.0</td><td>197.7</td></tr>
+<tr><td>Calcined dolomite</td><td>2.60</td><td>0.00</td><td>-2.60</td><td>25.6</td><td>0.0</td></tr>
+<tr><td>Calcined bauxite</td><td>17.13</td><td>16.57</td><td>-0.56</td><td>168.7</td><td>163.0</td></tr>
+<tr><td>Raw bauxite</td><td>25.83</td><td>26.51</td><td>0.69</td><td>269.3</td><td>276.0</td></tr>
+<tr><td>Fluorspar</td><td>2.35</td><td>2.35</td><td>0.00</td><td>23.3</td><td>23.3</td></tr>
+<tr><td>TOTAL</td><td>100.00</td><td>100.00</td><td>0.00</td><td>1,000.0</td><td>1,000.0</td></tr>
+</tbody></table></div>
+<p><strong>Looser P: spec check</strong> (shortened)</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Spec</th>
+<th>Limits</th>
+<th>Customer Min</th>
+<th>Customer Max</th>
+<th>Margin</th>
+<th>Base achieved</th>
+<th>Scenario achieved</th>
+<th>Base status</th>
+<th>Scenario status</th>
+</tr></thead>
+<tbody>
+<tr><td>CaO</td><td>CaO</td><td>50.00</td><td>56.00</td><td>0.00</td><td>50.00</td><td>50.00</td><td>Binding (Min)</td><td>Binding (Min)</td></tr>
+<tr><td>P</td><td>P</td><td></td><td>0.0350</td><td>0.0000</td><td>0.0300</td><td>0.0321</td><td>Binding (Max)</td><td>Slack</td></tr>
+</tbody></table></div>
+<p><strong>Looser P: binding limits</strong></p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Constraint</th>
+<th>Limit unit</th>
+<th>Step</th>
+<th>Base saving per step (Rs/dry t)</th>
+<th>Scenario saving per step (Rs/dry t)</th>
+</tr></thead>
+<tbody>
+<tr><td>CaO_min</td><td>wt % (dry basis)</td><td>1</td><td>14</td><td>599</td></tr>
+<tr><td>Al2O3_min</td><td>wt % (dry basis)</td><td>1</td><td>637</td><td>920</td></tr>
+<tr><td>CaF2_min</td><td>wt % (dry basis)</td><td>1</td><td>327</td><td>862</td></tr>
+<tr><td>P_max</td><td>wt % (dry basis)</td><td>0.01</td><td>7,351</td><td></td></tr>
+<tr><td>Lime fines max use</td><td>wt % of dry blend</td><td>1</td><td></td><td>4</td></tr>
+</tbody></table></div>
+<p>How to read it:</p>
+<ul>
+<li>The spec check shows the <strong>scenario's</strong> limits (here P Max 0.035) with both achieved values. With the looser limit, P is no longer binding: the blend settles at 0.0321 wt %.
+</li>
+<li>In the binding limits table a blank means "not binding in that case". With the looser P, Lime fines becomes worth using up to its plant maximum of 20 wt %, so its usage limit now binds.
+</li>
+<li>The recipe table gives the as-received kg for both cases: the scenario's weigh sheet.
+</li></ul>
+<h3 id="712-the-lp-file">7.12 The .lp file</h3>
+<p>Next to each report the tool writes a plain-text file with the extension <code>.lp</code>, for example <code>output\Test2_synthetic_slag_dry_result.lp</code>. It is the optimisation problem exactly as the solver received it. You do not need it for normal use, but it lets you check a limit by hand. Open it with Notepad.</p>
+<p>In it, <code>x_Lime</code> stands for the share of Lime in the dry blend as a fraction (0.5209 = 52.09 wt %). Each limit is one line, named after the spec row. A composition limit on a dry basis reads like the hand calculation, for example from Test 1:</p>
+<pre><code>CaO_min: 2 x_Bauxite + x_Calcined_alumina + 92 x_Lime &gt;= 50</code></pre>
+<p>(a coefficient of 1 is not written). A ratio limit is rewritten so that it is a weighted average. Test 2's basicity row, CaO / SiO2 at least 8, becomes "CaO − 8 × SiO2 at least 0":</p>
+<pre><code>Basicity_min: - 47 x_Calcined_bauxite + 45 x_Calcined_dolomite
+ - 70.5 x_Fluorspar + 80 x_Lime + 68 x_Lime_fines - 70.5 x_Raw_bauxite &gt;= 0</code></pre>
+<p>Check one coefficient by hand: for each raw material it is CaO − 8 × SiO2 from RawMaterials.</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Raw material</th>
+<th>CaO</th>
+<th>SiO2</th>
+<th>CaO − 8 × SiO2</th>
+</tr></thead>
+<tbody>
+<tr><td>Lime</td><td>92</td><td>1.5</td><td>92 − 12 = 80</td></tr>
+<tr><td>Lime fines</td><td>88</td><td>2.5</td><td>88 − 20 = 68</td></tr>
+<tr><td>Calcined dolomite</td><td>57</td><td>1.5</td><td>57 − 12 = 45</td></tr>
+<tr><td>Calcined bauxite</td><td>1</td><td>6</td><td>1 − 48 = −47</td></tr>
+<tr><td>Raw bauxite</td><td>1.5</td><td>9</td><td>1.5 − 72 = −70.5</td></tr>
+<tr><td>Fluorspar</td><td>1.5</td><td>9</td><td>1.5 − 72 = −70.5</td></tr>
+</tbody></table></div>
+<p>Limits on an ignited or as-received basis are rewritten in the same way, with 0 on the right-hand side. The line <code>Sum_of_fractions</code> says that the shares add up to 1 (100 %). When no recipe exists, the tool also writes <code>&lt;report name&gt;_elastic.lp</code>, the problem used for the diagnosis.</p>
+<hr>
+<h2 id="8-when-there-is-no-recipe-infeasible">8. When there is no recipe (infeasible)</h2>
+<p><strong>Infeasible</strong> means that no mix of the allowed raw materials meets every limit at the same time. The status is <code>Infeasible</code>, the report is still written, and the tool explains why, on screen and in the Diagnosis sheet.</p>
+<h3 id="81-how-the-tool-explains-it">8.1 How the tool explains it</h3>
+<p>The explanation has three steps.</p>
+<ol>
+<li><strong>Pre-check.</strong> The tool looks at each limit <strong>on its own</strong>, with only the usage limits applied, and asks: can any mix of the allowed raw materials reach it at all? This catches limits that can never be met, such as a component that no allowed material contains, and usage limits that leave no blend at all (minimums adding up to more than 100 %).
+</li>
+<li><strong>Elastic model.</strong> If every limit can be met on its own, some limits <strong>conflict</strong> with each other. The tool then lets each limit "stretch" and finds the smallest total stretch that makes a recipe possible, measured relative to the size of each limit. The limits it has to stretch, or that push against the stretched ones, are the candidates for the conflicting set.
+</li>
+<li><strong>Only the limits really needed.</strong> The tool then tests each candidate by taking it away. If there is still no recipe without it, it is not part of the conflict and is left out of the list. So every limit that is named matters: relaxing any one of them far enough removes this conflict. For each limit named, the tool works out the <strong>best value achievable while all the other limits are held</strong>.
+</li></ol>
+<p>It finally suggests <strong>one</strong> smallest change that makes a blend possible. There may be other ways: moving any of the conflicting limits will do.</p>
+<h3 id="82-example-1-a-banned-raw-material">8.2 Example 1: a banned raw material</h3>
+<p><code>templates\Test2_synthetic_slag_fluorspar_ban.xlsx</code> is Test 2 with a UsageLimits row that bans Fluorspar (Max 0). Real output:</p>
+<pre><code>Status: Infeasible | spec basis: dry | lab convention: dry_incl_loi
+No recipe: the solver status is &#x27;Infeasible&#x27;.
+
+No blend meets every limit (the problem is infeasible).
+Pre-check (each limit on its own, with only the usage limits applied):
+  - No allowed raw material contains CaF2, so CaF2_min (CaF2 &gt;= 2.00 %) cannot be met. Raw materials that would help are restricted: Fluorspar (CaF2 85.00 %) is not allowed (Max 0 %, UsageLimits).
+Elastic model: these limits cannot all be met together: CaF2_min, Fluorspar max use.
+  - CaF2_min (CaF2 &gt;= 2.00 %): the highest CaF2 achievable while Fluorspar &lt;= 0 % (usage limit) and all other limits are held is 0.00 %.
+Smallest total relative change that makes a blend possible (one way; there may be others): lower CaF2_min from 2.00 % to 0.00 %.</code></pre>
+<p>How to read it:</p>
+<ul>
+<li>The pre-check already finds the cause: only Fluorspar contains CaF2, and it is banned (by the UsageLimits sheet). The CaF2 minimum of 2 wt % can never be met.
+</li>
+<li>The elastic model confirms it: CaF2_min and the fluorspar ban cannot both hold.
+</li>
+<li>The way out: either the customer drops the CaF2 minimum, or the ban is lifted, or you add a raw material that contains CaF2 and is allowed.
+</li></ul>
+<h3 id="83-example-2-two-limits-that-conflict">8.3 Example 2: two limits that conflict</h3>
+<p><code>templates\Test1_infeasible_Al2O3_min_45.xlsx</code> is Test 1 with the Al2O3 minimum raised from 30 to 45 wt %. Real output:</p>
+<pre><code>No blend meets every limit (the problem is infeasible).
+Pre-check: every limit can be met on its own, so some limits conflict with each other.
+Elastic model: these limits cannot all be met together: CaO_min, Al2O3_min.
+  - CaO_min (CaO &gt;= 50.00 %): the highest CaO achievable while Al2O3 &gt;= 45.00 % and all other limits are held is 44.33 %.
+  - Al2O3_min (Al2O3 &gt;= 45.00 %): the highest Al2O3 achievable while CaO &gt;= 50.00 % and all other limits are held is 39.77 %.
+Smallest total relative change that makes a blend possible (one way; there may be others): lower CaO_min from 50.00 % to 44.33 %.</code></pre>
+<p>How to read it:</p>
+<ul>
+<li>Each limit can be met on its own (Calcined alumina alone has 85 wt % Al2O3; Lime alone has 92 wt % CaO), so the pre-check finds nothing.
+</li>
+<li>But not both together. With CaO at least 50 wt %, the most Al2O3 you can get is <strong>39.77 wt %</strong>; with Al2O3 at least 45 wt %, the most CaO you can get is 44.33 wt %. These two lines are the same conflict seen from each side.
+</li>
+<li>The suggestion is to lower CaO_min to 44.33 %, because that is the smaller change relative to the limit (11.3 % of 50, against 11.6 % of 45 for Al2O3). Lowering Al2O3_min to 39.77 % works just as well.
+</li></ul>
+<h3 id="84-what-to-do-next">8.4 What to do next</h3>
+<ol>
+<li><strong>Check your inputs first.</strong> Most infeasible results are typing errors, not real conflicts.
+<ul>
+<li>Is a row missing, or in the wrong sheet? A raw material name belongs in UsageLimits, not Specs.
+</li>
+<li>Is a value in the wrong column? (Example below.)
+</li>
+<li>Is an analysis wrong? A misplaced decimal point or a value in the wrong column of RawMaterials can make a limit impossible.
+</li></ul>
+<p>Real example of a value in the wrong column: Test 1 with the SiO2 limit of 6 typed under <strong>Min</strong> instead of Max. The tool now looks for at least 6 wt % SiO2 and reports a conflict:</p>
+</li></ol>
+<pre><code>Elastic model: these limits cannot all be met together: CaO_min, SiO2_min.
+  - CaO_min (CaO &gt;= 50.00 %): the highest CaO achievable while SiO2 &gt;= 6.00 % and all other limits are held is 32.00 %.
+  - SiO2_min (SiO2 &gt;= 6.00 %): the highest SiO2 achievable while CaO &gt;= 50.00 % and all other limits are held is 4.68 %.</code></pre>
+<p>The name <code>SiO2_min</code> gives the mistake away: the customer gave a maximum. Al2O3_min is not in the list: CaO_min and SiO2_min conflict even without it. (The 32.00 % and 4.68 % are worked out with Al2O3_min held as well, as "all other limits are held" says.)</p>
+<ol start="2">
+<li><strong>Then decide how to resolve a real conflict.</strong> There are three ways:
+<ul>
+<li><strong>Relax a limit with the customer.</strong> The diagnosis tells you how far: in Example 2, to 39.77 wt % Al2O3 or to 44.33 wt % CaO.
+</li>
+<li><strong>Add a raw material</strong> that breaks the conflict: one that brings what is missing without what is in excess (in Example 2, a material richer in both CaO and Al2O3, such as a calcium aluminate).
+</li>
+<li><strong>Check the analyses</strong> of the materials involved, and update them if they were out of date.
+</li></ul>
+</li>
+<li><strong>Test the options with WhatIf</strong> before talking to the customer. Example 2 with two scenarios (real run):
+</li></ol>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Scenario</th>
+<th>Change type</th>
+<th>Item</th>
+<th>New value</th>
+</tr></thead>
+<tbody>
+<tr><td>CaO 44</td><td>Spec Min</td><td>CaO</td><td>44</td></tr>
+<tr><td>Al2O3 39.5</td><td>Spec Min</td><td>Al2O3</td><td>39.5</td></tr>
+</tbody></table></div>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Scenario</th>
+<th>Sheet</th>
+<th>Changes</th>
+<th>Status</th>
+<th>Cost (Rs/dry t)</th>
+<th>Change vs base (Rs/dry t)</th>
+</tr></thead>
+<tbody>
+<tr><td>CaO 44</td><td>Scenario CaO 44</td><td>Spec Min CaO 50.00 -&gt; 44.00</td><td>Optimal</td><td>19,850</td><td></td></tr>
+<tr><td>Al2O3 39.5</td><td>Scenario Al2O3 39.5</td><td>Spec Min Al2O3 45.00 -&gt; 39.50</td><td>Optimal</td><td>18,494</td><td></td></tr>
+</tbody></table></div>
+<p>Both are possible, and accepting 39.5 wt % Al2O3 gives the cheaper blend. "Change vs base" is blank because the base case has no cost.</p>
+<ol start="4">
+<li><strong>One conflict at a time.</strong> The tool shows one set of conflicting limits. A badly specified product can contain several separate conflicts: resolve the one shown, run again, and the next one (if any) appears. A line ending in "even without this limit, the other limits cannot all be met" is the sign of a second conflict: without the limit named, other limits still clash. Example (real run): Test 1 with the Al2O3 minimum at 45 wt % <strong>and</strong> the SiO2 maximum at 1 wt %:
+</li></ol>
+<pre><code>Elastic model: these limits cannot all be met together: SiO2_max.
+  - SiO2_max (SiO2 &lt;= 1.00 %): even without this limit, the other limits cannot all be met.</code></pre>
+<p>SiO2 ≤ 1 wt % is impossible on its own (the pre-check says so too), and without it CaO_min and Al2O3_min still conflict, as in Example 2.</p>
+<hr>
+<h2 id="9-everyday-tasks">9. Everyday tasks</h2>
+<p>Short recipes for common jobs. Each one assumes the environment is active (<a href="#35-activate-the-virtual-environment">3.5</a>) and that you run the tool as in <a href="#61-the-command">6.1</a>.</p>
+<h3 id="91-a-raw-material-price-changes">9.1 A raw material price changes</h3>
+<ol>
+<li>Look at the <strong>Price ranges</strong> sheet of the last report. If the new price is inside the material's band, the recipe stays the same and only the cost changes.
+</li>
+<li>To see the new cost before changing anything, add a WhatIf row, for example:
+</li></ol>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Scenario</th>
+<th>Change type</th>
+<th>Item</th>
+<th>New value</th>
+</tr></thead>
+<tbody>
+<tr><td>New fluorspar price</td><td>Price</td><td>Fluorspar</td><td>35000</td></tr>
+</tbody></table></div>
+<p>(In the example workbook this scenario is called "Fluorspar dearer": it adds ₹ 166 per dry tonne, and the recipe does not change.)</p>
+<ol start="3">
+<li>When the price is confirmed, change <code>Cost_Rs_per_t</code> in RawMaterials (in the master workbook for layout B), save, and run again.
+</li></ol>
+<h3 id="92-a-supplier-offers-a-new-material-or-a-new-price">9.2 A supplier offers a new material or a new price</h3>
+<ul>
+<li><strong>A new price for a material you already list:</strong> as in 9.1.
+</li>
+<li><strong>A new material:</strong>
+<ol>
+<li>Add a row to RawMaterials: name, landed cost, price basis, moisture, LOI, and a value in <strong>every</strong> component column.
+</li>
+<li>Optional: add a WhatIf scenario with <code>Usage Max</code> = 0 for the new material, called for example "Without new material". It shows what the new material saves.
+</li>
+<li>Run the tool.
+</li>
+<li>Look at the Recipe sheet. If the new material is used, the Price ranges sheet shows how far its price can rise before the recipe changes. If it is not used, the Reduced costs sheet shows the price below which it would be worth buying ("Enters below (Rs/t as entered)"). That is your answer to the supplier.
+</li></ol>
+</li></ul>
+<h3 id="93-a-customer-asks-for-a-tighter-or-looser-limit">9.3 A customer asks for a tighter or looser limit</h3>
+<ol>
+<li>Look at the <strong>Spec check</strong> sheet. If the limit is slack, a small change costs nothing.
+</li>
+<li>If it is binding, the <strong>Shadow prices</strong> sheet gives the cost per step, for a quick first answer.
+</li>
+<li>For the exact figure, add a WhatIf row with <code>Spec Min</code> or <code>Spec Max</code>. In the example, "Looser P" (P Max 0.030 → 0.035) saves ₹ 623 per dry tonne.
+</li>
+<li>If the customer agrees, change the row in Specs and run again.
+</li>
+<li>A tighter limit can make the product impossible; the tool then explains why (<a href="#8-when-there-is-no-recipe-infeasible">chapter 8</a>).
+</li></ol>
+<h3 id="94-a-customer-bans-a-raw-material">9.4 A customer bans a raw material</h3>
+<ol>
+<li>To see the effect first, add a WhatIf row with <code>Usage Max</code> = 0 for that material. In the example, "No fluorspar" is infeasible because nothing else contains CaF2.
+</li>
+<li>To apply the ban for this customer's product, add a row to the product workbook's <strong>UsageLimits</strong> sheet with <code>Max_use_%</code> = 0. Other products are not affected.
+</li>
+<li>If the product becomes infeasible, <a href="#8-when-there-is-no-recipe-infeasible">chapter 8</a> shows which limits conflict and what to discuss with the customer.
+</li></ol>
+<h3 id="95-comparing-the-optimum-with-the-current-production-recipe">9.5 Comparing the optimum with the current production recipe</h3>
+<p>Use the "current recipe" scenario described in <a href="#56-whatif-optional">5.6</a>: convert the shop-floor kg to dry wt %, fix every material except the largest, and set <code>Usage Max</code> = 0 for the materials not used today. The "Change vs base" column in the Scenarios sheet is the cost of today's recipe above the optimum, in ₹ per dry tonne (₹ 940 in the example). Multiply by the annual dry tonnes for the yearly figure.</p>
+<h3 id="96-running-several-products-against-one-master-raw-material-file">9.6 Running several products against one master raw-material file</h3>
+<p>Use layout B (<a href="#4-choosing-a-workbook-layout">chapter 4</a>). The tool runs one product per command, so run the command once for each product:</p>
+<pre><code>python run.py data\Slag_SS45.xlsx --raw-materials data\Raw_materials.xlsx</code></pre>
+<p>To run every product workbook in a folder in one go, put the product workbooks in <code>data\products\</code> and type this single line:</p>
+<pre><code>foreach ($p in Get-ChildItem data\products\*.xlsx) { python run.py $p.FullName --raw-materials data\Raw_materials.xlsx --output &quot;output\$($p.BaseName)_$(Get-Date -Format yyyy-MM-dd).xlsx&quot; --quiet }</code></pre>
+<p>Real output with two product workbooks, <code>Slag_dry.xlsx</code> and <code>Slag_ignited.xlsx</code>:</p>
+<pre><code>Report written to: output\Slag_dry_2026-10-26.xlsx
+LP file:           output\Slag_dry_2026-10-26.lp
+
+Report written to: output\Slag_ignited_2026-10-26.xlsx
+LP file:           output\Slag_ignited_2026-10-26.lp</code></pre>
+<p>Each product gets its own dated report. Open each one and check its Spec check sheet.</p>
+<h3 id="97-keeping-a-history-of-reports">9.7 Keeping a history of reports</h3>
+<p>With the default name, each run overwrites the previous report of the same product. To keep a history, put the date in the report name with <code>--output</code> (<a href="#63-where-the-report-goes">6.3</a>):</p>
+<pre><code>python run.py templates\Test2_synthetic_slag_dry.xlsx --output &quot;output\Test2_synthetic_slag_dry_$(Get-Date -Format yyyy-MM-dd).xlsx&quot; --quiet</code></pre>
+<p>Keep a copy of the input workbook with the same date as well, so you can see later which prices and analyses gave which recipe.</p>
+<hr>
+<h2 id="10-before-using-a-recipe-in-production">10. Before using a recipe in production</h2>
+<p>The tool finds the cheapest recipe that meets the limits you gave it. It does not know your plant. Before you change production:</p>
+<ol>
+<li><strong>Cost the current recipe first</strong> (<a href="#56-whatif-optional">5.6</a>), so you know the real saving.
+</li>
+<li><strong>Check the optimum with an experienced eye.</strong> Is any material at a share you would not normally use? Is one material close to 100 %? Is a customer limit missing from the Spec check sheet? Would the recipe cause handling, segregation, dust or mixing problems that the tool cannot know about?
+</li>
+<li><strong>Add the missing practical limits</strong> as usage limits: in UsageLimits for this product, or as <code>Min_use_%</code> / <code>Max_use_%</code> in RawMaterials for every product. Run again. The Shadow prices sheet then shows what each practical limit costs (rows of type "Usage limit").
+</li>
+<li><strong>Use margins</strong> on the limits that matter, to cover the lot-to-lot variation of the raw materials.
+</li>
+<li><strong>Make a trial batch</strong> with the As-received kg from the Recipe sheet.
+</li>
+<li><strong>Analyse the trial batch</strong> and compare it with the Composition sheet, on the <strong>same basis</strong> (dry, ignited or as received). If the analyses differ by more than the usual lab and sampling scatter, the analyses in RawMaterials are probably out of date: update them and run again.
+</li>
+<li>Only then release the recipe.
+</li></ol>
+<hr>
+<h2 id="11-troubleshooting">11. Troubleshooting</h2>
+<p>The messages in this table are copied from real runs. Every other message the tool can produce is listed in <a href="#appendix-a-message-reference">Appendix A</a>.</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Symptom</th>
+<th>Likely cause</th>
+<th>What to do</th>
+</tr></thead>
+<tbody>
+<tr><td><code>…\.venv\Scripts\Activate.ps1 cannot be loaded because running scripts is disabled on this system.</code></td><td>PowerShell blocks scripts on this computer</td><td>Run <code>Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process</code> and activate again, or use Command Prompt (<a href="#35-activate-the-virtual-environment">3.5</a>)</td></tr>
+<tr><td><code>ModuleNotFoundError: No module named &#x27;pandas&#x27;</code> (or another package)</td><td>The environment is not active, so the system Python runs, without the packages</td><td>Activate (<a href="#35-activate-the-virtual-environment">3.5</a>). If it is active, install the packages (<a href="#36-install-the-packages">3.6</a>).</td></tr>
+<tr><td><code>python: can&#x27;t open file &#x27;D:\\VS Python\\Cost Optimizer\\rn.py&#x27;: [Errno 2] No such file or directory</code></td><td>A typo in <code>run.py</code>, or PowerShell is in another folder</td><td>Use Tab to complete names; <code>cd</code> to the tool's folder (<a href="#33-open-powershell-in-the-tools-folder">3.3</a>)</td></tr>
+<tr><td><code>File not found: templates\Test1_hand_workd.xlsx</code></td><td>A typo in the workbook name or folder</td><td>Use Tab to complete the name</td></tr>
+<tr><td><code>Nothing was solved. Correct the workbook and run again.</code></td><td>The workbook has errors</td><td>Read the messages printed <strong>above</strong> this line; each names the sheet, row and item (<a href="#65-reading-the-screen">6.5</a>)</td></tr>
+<tr><td><code>component &#x27;AL2O3&#x27; is not a column in RawMaterials. Did you mean &#x27;Al2O3&#x27;? (Component names must match exactly.)</code></td><td>The name in Specs is spelled differently from the RawMaterials header</td><td>Make the spelling identical, including capital letters</td></tr>
+<tr><td><code>Specs (Test1_formula_in_Name.xlsx) row 5 &#x27;CaO / SiO2&#x27;, Numerator: value is blank; name at least one component.</code></td><td>The formula was written in <strong>Name</strong> instead of Numerator and Denominator</td><td>Name is only a label: write <code>CaO</code> in Numerator and <code>SiO2</code> in Denominator</td></tr>
+<tr><td><code>Numerator: &#x27;Fluorspar&#x27; is a raw material, not a component. To limit how much of it is used, put it in UsageLimits.</code></td><td>A <strong>raw material</strong> name was used in Specs (e.g. to ban it)</td><td>Limits on raw materials belong in UsageLimits (<a href="#55-usagelimits-optional">5.5</a>); Specs only takes chemical components</td></tr>
+<tr><td><code>Numerator: &#x27;LOI_%&#x27; is a property column, not a component, so it can&#x27;t be used in a spec.</code></td><td>A <strong>property</strong> column (<code>LOI_%</code>, <code>Moisture_%</code>, the cost or usage columns) was used in a spec</td><td>These columns describe the raw materials; they cannot be limited in Specs (<a href="#12-limitations">12. Limitations</a>)</td></tr>
+<tr><td><code>Could not write the report: [Errno 13] Permission denied: …</code> and <code>If the report is open in Excel, close it and run again.</code></td><td>The report from an earlier run is open in Excel</td><td>Close it in Excel and run again</td></tr>
+<tr><td><code>No &#x27;RawMaterials&#x27; sheet in Test2_product_only.xlsx, and no master raw-material file was given. Add the sheet, or give the master raw-material file with --raw-materials.</code></td><td>A layout B product was run without its master file</td><td>Add <code>--raw-materials data\Raw_materials.xlsx</code> (<a href="#62-options">6.2</a>)</td></tr>
+<tr><td>A warning <code>components + LOI = … %, outside the expected 97-103 %</code></td><td>A typing error, a missing component column, a missing LOI, or analyses on the other convention</td><td>Check the material's analysis (<a href="#52-rawmaterials">5.2</a>)</td></tr>
+<tr><td>A warning <code>RawMaterials &#x27;Calcined bauxite&#x27;: P is blank (not analysed) and is counted as 0, but a spec uses it. Type 0 if it is genuinely absent.</code></td><td>An analysis cell left <strong>blank</strong> for a component that a spec limits. The recipe would rely on a value nobody measured (here the report shows 0.024 wt % P; with the real analysis the same recipe has 0.032 wt %).</td><td>Fill in the analysed value, or type 0 if the component is genuinely absent (<a href="#52-rawmaterials">5.2</a>)</td></tr>
+<tr><td>An unexpected recipe, e.g. 100 % of one material</td><td>A <strong>missing spec row</strong> (Test 1 without its Al2O3 row gives 100 % Lime)</td><td>Compare the Spec check sheet with the customer's specification, limit by limit (<a href="#74-spec-check">7.4</a>)</td></tr>
+<tr><td>An unexpected recipe or <code>Infeasible</code>, and a limit appears as <code>…_min</code> where the customer gave a maximum (e.g. <code>SiO2_min</code>)</td><td>A value typed in the <strong>Min column instead of Max</strong></td><td>Move the value to the right column</td></tr>
+<tr><td>An unexpected recipe with no warning</td><td>A <strong>wrong value</strong> in an analysis cell, e.g. a 0 typed where the component is present, or a misplaced decimal point</td><td>Check the analyses of the materials the recipe uses, especially trace elements (<a href="#52-rawmaterials">5.2</a>)</td></tr>
+<tr><td>Status <code>Infeasible</code> (exit code 2)</td><td>No mix meets every limit</td><td>Read the diagnosis (<a href="#8-when-there-is-no-recipe-infeasible">chapter 8</a>)</td></tr>
+<tr><td>A batch file or script sees exit code 1 or 2</td><td>1: input errors (or the report could not be written); 2: no recipe for the base case</td><td>Run the same command by hand and read the screen (<a href="#65-reading-the-screen">6.5</a>)</td></tr>
+<tr><td><code>The minimum usage limits add up to 100.01 % of the blend, more than 100 %</code> in a "current recipe" scenario</td><td>All materials were fixed at rounded shares</td><td>Fix every material except one (<a href="#56-whatif-optional">5.6</a>)</td></tr>
+<tr><td>A raw material at 0.00 %</td><td>It is not worth using at its price</td><td>Normal (<a href="#23-why-the-cheapest-recipe-uses-only-a-few-raw-materials">2.3</a>); see Reduced costs for the price at which it would be used</td></tr>
+<tr><td>Reduced costs says "Enters below 1,872" and Price ranges says 1,873</td><td>The price search works to ₹ 1</td><td>Normal</td></tr>
+<tr><td>A red block with <code>NativeCommandError</code> and <code>[notice] A new release of pip is available</code> during installation</td><td>A pip notice, shown in red by PowerShell</td><td>Ignore it</td></tr>
+<tr><td>An error that starts with <code>WhatIf scenario &#x27;…&#x27;:</code></td><td>The changes of one scenario do not fit together (e.g. a new Min above the Max)</td><td>Correct that scenario's rows (<a href="#appendix-a-message-reference">Appendix A</a>, A.7)</td></tr>
+</tbody></table></div>
+<hr>
+<h2 id="12-limitations">12. Limitations</h2>
+<p>What this version of the tool does not do:</p>
+<ul>
+<li><strong>Continuous amounts only.</strong> Shares can take any value. There are no whole bags, no "either 0 or at least 5 %" (a <code>Min_use_%</code> always applies), and no limit on the number of raw materials used.
+</li>
+<li><strong>Chemistry only.</strong> Limits are on components, sums of components, ratios and conversion factors. Melting point, viscosity, particle size, density, dust and flowability are not modelled.
+</li>
+<li><strong>LOI and moisture cannot be limited</strong> in Specs; they are properties of the raw materials, not components.
+</li>
+<li><strong>Usage limits are per raw material.</strong> There is no limit on a group of materials together (e.g. "Raw bauxite plus Lime fines at most 30 %").
+</li>
+<li><strong>Raw material cost only.</strong> The cost is the landed cost of the raw materials. Processing, energy, losses and yield are not included.
+</li>
+<li><strong>One conflict set at a time</strong> in the diagnosis (<a href="#84-what-to-do-next">8.4</a>).
+</li>
+<li><strong>Conversion factors are typed by you.</strong> The tool knows no chemistry and does not check that a factor is right. Subtraction (<code>-</code>) is not allowed in expressions.
+</li>
+<li><strong>One lab convention for the whole tool</strong>, set by the maintainer, not per material or per workbook.
+</li>
+<li><strong>Shadow prices are valid only near the current limit</strong>; use WhatIf for the exact effect of a change.
+</li>
+<li><strong>Price ranges</strong> vary one price at a time with all others fixed, are searched between ₹ 0 and 10 times today's price, and are accurate to ₹ 1.
+</li>
+<li><strong>Scenarios</strong> are each compared with the base case, not with each other, and cannot add a new raw material (add it in RawMaterials).
+</li>
+<li><strong>One product per run</strong> (a PowerShell loop can run several, <a href="#96-running-several-products-against-one-master-raw-material-file">9.6</a>); report names carry no date unless you give one.
+</li>
+<li><strong>Analyses are taken as exact.</strong> The tool does not model the variation of raw materials; use margins.
+</li></ul>
+<hr>
+<h2 id="13-glossary">13. Glossary</h2>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Term</th>
+<th>Meaning</th>
+</tr></thead>
+<tbody>
+<tr><td>As received</td><td>The state of a material as delivered, including its free moisture. Prices and the batch weight are usually as received.</td></tr>
+<tr><td>Base case</td><td>The workbook as it stands, without any WhatIf changes. Every scenario is compared with it.</td></tr>
+<tr><td>Binding</td><td>A limit the blend sits exactly on. It holds the recipe where it is; relaxing it would make the blend cheaper.</td></tr>
+<tr><td>Conversion factor</td><td>A number that counts one component as another, e.g. 1.8895 to count metallic Al as Al2O3 (<code>Al2O3+1.8895*Al</code>).</td></tr>
+<tr><td>Dry basis</td><td>The analysis or mass of a material with its free moisture removed (LOI still included). Raw material analyses are entered on a dry basis.</td></tr>
+<tr><td>Elastic model</td><td>The second step of the diagnosis: every limit may stretch, and the tool finds the smallest total stretch that makes a recipe possible. It shows which limits conflict.</td></tr>
+<tr><td>Feasible / infeasible</td><td>Feasible: at least one recipe meets every limit. Infeasible: none does.</td></tr>
+<tr><td>Ignited basis</td><td>The analysis after loss on ignition, i.e. without the volatile part. Components are higher than on a dry basis.</td></tr>
+<tr><td>Landed cost</td><td>The price of a raw material delivered to your plant: purchase price plus freight and handling.</td></tr>
+<tr><td>Linear programming</td><td>The mathematical method the tool uses. It finds the exact cheapest recipe when the blend's analysis and cost are weighted averages of the raw materials'.</td></tr>
+<tr><td>LOI</td><td>Loss on ignition: the mass lost when the dried material is heated strongly (water of crystallisation, CO2 from carbonates, etc.), in wt % of the dry material.</td></tr>
+<tr><td>.lp file</td><td>A plain-text copy of the optimisation problem, written next to each report, for checking by hand.</td></tr>
+<tr><td>Margin</td><td>A safety distance you set inside a customer limit. The tool aims for Min + margin and Max − margin. A margin only ever tightens a limit.</td></tr>
+<tr><td>Price range</td><td>The band within which a raw material's price can move without changing the recipe.</td></tr>
+<tr><td>Reduced cost</td><td>For an unused raw material: how much cheaper it would have to be before it is worth using.</td></tr>
+<tr><td>Scenario</td><td>A named set of changes in the WhatIf sheet, solved and compared with the base case.</td></tr>
+<tr><td>Shadow price</td><td>For a binding limit: how much the blend cost falls (₹ per dry tonne) per step that the limit is relaxed. Valid only near the current limit.</td></tr>
+<tr><td>Slack</td><td>A limit the blend meets with room to spare. Relaxing it changes nothing.</td></tr>
+<tr><td>Solver</td><td>The program that carries out the linear programming. This tool uses HiGHS.</td></tr>
+<tr><td>Spec basis</td><td>The basis of the customer's composition limits: dry, as received or ignited. Set in Settings.</td></tr>
+<tr><td>Target</td><td>The limit the tool actually aims for: the customer limit with your margin applied.</td></tr>
+<tr><td>Usage limit</td><td>A minimum or maximum share of one raw material in the dry blend: plant-wide (RawMaterials) or for one product (UsageLimits).</td></tr>
+<tr><td>Virtual environment</td><td>The private copy of Python and its packages in the <code>.venv</code> folder, used only by this tool.</td></tr>
+<tr><td>wt %</td><td>Percent by mass.</td></tr>
+</tbody></table></div>
+<hr>
+<h2 id="appendix-a-message-reference">Appendix A. Message reference</h2>
+<p>These are the messages the tool can print, taken from the program. Parts in <code>&lt;angle brackets&gt;</code> are filled in with the actual file, row, name or value. Errors stop the run ("Nothing was solved"); warnings let it continue.</p>
+<p>Most messages start with where the problem is, for example <code>RawMaterials (Slag_SS45.xlsx) row 4 &#x27;Lime&#x27;, Cost_Rs_per_t:</code>, meaning sheet, file, Excel row, the row's name, and the column.</p>
+<h3 id="a1-starting-and-finishing">A.1 Starting and finishing</h3>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Message</th>
+<th>Type</th>
+<th>Meaning</th>
+</tr></thead>
+<tbody>
+<tr><td><code>python: can&#x27;t open file &#x27;&lt;path&gt;\&lt;name&gt;.py&#x27;: [Errno 2] No such file or directory</code></td><td>Python error</td><td>The script name is wrong, or you are in another folder</td></tr>
+<tr><td><code>ModuleNotFoundError: No module named &#x27;&lt;package&gt;&#x27;</code></td><td>Python error</td><td>The environment is not active or not installed</td></tr>
+<tr><td><code>File not found: &lt;path&gt;</code></td><td>Error</td><td>The workbook does not exist at that path</td></tr>
+<tr><td><code>Could not read &lt;file&gt; as an Excel workbook: &lt;reason&gt;</code></td><td>Error</td><td>The file is damaged, not an .xlsx file, or open elsewhere</td></tr>
+<tr><td><code>&lt;file&gt;: required sheet &#x27;&lt;sheet&gt;&#x27; not found. Did you mean &#x27;&lt;sheet&gt;&#x27;? Sheets present: &lt;list&gt;.</code></td><td>Error</td><td>A required sheet (RawMaterials, Specs or Settings) is missing or misnamed</td></tr>
+<tr><td><code>No &#x27;RawMaterials&#x27; sheet in &lt;file&gt;, and no master raw-material file was given. Add the sheet, or give the master raw-material file with --raw-materials.</code></td><td>Error</td><td>Add <code>--raw-materials &lt;master file&gt;</code></td></tr>
+<tr><td><code>&lt;file&gt; also has a RawMaterials sheet. It is ignored because a master raw-material file (&lt;master&gt;) was given.</code></td><td>Warning</td><td>Layout B: the master file is used</td></tr>
+<tr><td><code>&lt;n&gt; input error(s) found:</code> … <code>Nothing was solved. Correct the workbook and run again.</code></td><td>Summary</td><td>The list of errors and warnings, then the run stops</td></tr>
+<tr><td><code>Could not write the report: &lt;reason&gt;</code> / <code>If the report is open in Excel, close it and run again.</code></td><td>Error</td><td>The report file is locked</td></tr>
+<tr><td><code>Report written to: &lt;path&gt;</code> / <code>LP file: &lt;path&gt;</code> / <code>Scenarios: &lt;n&gt; (see the Scenarios sheet)</code></td><td>Information</td><td>Where the results are</td></tr>
+</tbody></table></div>
+<p>Every run also ends with an exit code (<a href="#65-reading-the-screen">6.5</a>): 0 = recipe found, 1 = input errors (or the report could not be written), 2 = no recipe for the base case.</p>
+<h3 id="a2-headers-and-columns-any-sheet">A.2 Headers and columns (any sheet)</h3>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Message</th>
+<th>Type</th>
+<th>Meaning</th>
+</tr></thead>
+<tbody>
+<tr><td><code>&lt;sheet&gt;: required column &#x27;&lt;column&gt;&#x27; is missing. Did you mean &#x27;&lt;header&gt;&#x27;?</code></td><td>Error</td><td>A required column header is missing or misspelled</td></tr>
+<tr><td><code>&lt;sheet&gt;: column &#x27;&lt;header&gt;&#x27; looks like a misspelling of &#x27;&lt;column&gt;&#x27;. Rename it; otherwise it would be read as a chemical component.</code> (in other sheets: <code>… otherwise it would be ignored.</code>)</td><td>Error</td><td>Correct the header</td></tr>
+<tr><td><code>&lt;sheet&gt;: column &#x27;&lt;header&gt;&#x27; is not used and is ignored.</code></td><td>Warning</td><td>An extra column in a sheet other than RawMaterials</td></tr>
+<tr><td><code>&lt;sheet&gt;: column &lt;letter&gt; has values but no header in row 1.</code></td><td>Error</td><td>Add the header, or clear the column</td></tr>
+<tr><td><code>&lt;sheet&gt;: column &#x27;&lt;header&gt;&#x27; appears more than once (column &lt;letter&gt;).</code></td><td>Error</td><td>Two columns with the same header</td></tr>
+</tbody></table></div>
+<h3 id="a3-rawmaterials">A.3 RawMaterials</h3>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Message</th>
+<th>Type</th>
+<th>Meaning</th>
+</tr></thead>
+<tbody>
+<tr><td><code>&lt;sheet&gt; row &lt;n&gt;: Name is blank.</code></td><td>Error</td><td>Every row needs a name</td></tr>
+<tr><td><code>… duplicate name (already used in row &lt;n&gt;; names must be unique, ignoring case).</code></td><td>Error</td><td>Two raw materials with the same name</td></tr>
+<tr><td><code>…, &lt;column&gt;: value is blank.</code></td><td>Error</td><td>A required value (e.g. the cost) is missing</td></tr>
+<tr><td><code>…, &lt;column&gt;: &#x27;&lt;text&gt;&#x27; is not a number. Use a number, or leave the cell blank.</code></td><td>Error</td><td>Text in a number column, e.g. <code>8,500 Rs</code></td></tr>
+<tr><td><code>…, &lt;column&gt;: &lt;value&gt; is negative; it must be 0 or more.</code></td><td>Error</td><td></td></tr>
+<tr><td><code>…, &lt;column&gt;: &lt;value&gt; is above the maximum allowed (100).</code></td><td>Error</td><td>A percentage above 100</td></tr>
+<tr><td><code>…, &lt;column&gt;: must be below 100.</code></td><td>Error</td><td>Moisture or LOI of 100 % or more</td></tr>
+<tr><td><code>…, Price_basis: &#x27;&lt;text&gt;&#x27; is not allowed; use one of as_received, dry.</code></td><td>Error</td><td></td></tr>
+<tr><td><code>…, Price_basis: blank, but Moisture_% is &lt;value&gt;. Say whether Cost_Rs_per_t is &#x27;as_received&#x27; or &#x27;dry&#x27;.</code></td><td>Error</td><td>With moisture, the basis matters</td></tr>
+<tr><td><code>…: price is &#x27;as_received&#x27; but Moisture_% is blank, so moisture is taken as 0 and the dry price equals the quoted price.</code></td><td>Warning</td><td>Fill in the moisture</td></tr>
+<tr><td><code>…: Min_use_% (&lt;a&gt;) is greater than Max_use_% (&lt;b&gt;).</code></td><td>Error</td><td></td></tr>
+<tr><td><code>&lt;sheet&gt;: no chemical component columns found (e.g. one column per oxide).</code></td><td>Error</td><td></td></tr>
+<tr><td><code>&lt;sheet&gt;: no raw materials listed.</code></td><td>Error</td><td></td></tr>
+<tr><td><code>RawMaterials &#x27;&lt;name&gt;&#x27;: components + LOI = &lt;x&gt; %, outside the expected 97-103 % for the &#x27;dry_incl_loi&#x27; lab convention. Components alone = &lt;y&gt; %, which looks like the &#x27;loi_free&#x27; convention. Check the lab report and LAB_ANALYSIS_CONVENTION in config.py.</code></td><td>Warning</td><td>The analysis looks LOI-free (<a href="#52-rawmaterials">5.2</a>)</td></tr>
+<tr><td><code>RawMaterials &#x27;&lt;name&gt;&#x27;: … Neither convention fits (components alone = &lt;y&gt; %, components + LOI = &lt;x&gt; %): check for a missing component column, a typing error or a missing LOI.</code></td><td>Warning</td><td>The analysis does not add up</td></tr>
+<tr><td><code>RawMaterials &#x27;&lt;name&gt;&#x27;: &lt;component&gt; is blank (not analysed) and is counted as 0, but a spec uses it. Type 0 if it is genuinely absent.</code></td><td>Warning</td><td>A blank analysis cell in a component that a spec uses, for a material the blend may use (effective Max above 0). Fill in the value, or type 0 (<a href="#52-rawmaterials">5.2</a>)</td></tr>
+</tbody></table></div>
+<h3 id="a4-specs">A.4 Specs</h3>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Message</th>
+<th>Type</th>
+<th>Meaning</th>
+</tr></thead>
+<tbody>
+<tr><td><code>&lt;sheet&gt; row &lt;n&gt;: Name is blank.</code></td><td>Error</td><td></td></tr>
+<tr><td><code>… duplicate name (already used in row &lt;n&gt;; spec names become constraint names, so they must be unique).</code></td><td>Error</td><td></td></tr>
+<tr><td><code>…, Numerator: value is blank; name at least one component.</code></td><td>Error</td><td>Often: the formula was written in Name</td></tr>
+<tr><td><code>…, &lt;column&gt;: component &#x27;&lt;name&gt;&#x27; is not a column in RawMaterials. Did you mean &#x27;&lt;name&gt;&#x27;? (Component names must match exactly.)</code></td><td>Error</td><td>A spelling difference</td></tr>
+<tr><td><code>…, &lt;column&gt;: &#x27;&lt;name&gt;&#x27; is a property column, not a component, so it can&#x27;t be used in a spec.</code></td><td>Error</td><td><code>LOI_%</code>, <code>Moisture_%</code>, <code>Cost_Rs_per_t</code>, <code>Min_use_%</code>, <code>Max_use_%</code> (or the same with other capitals, spaces or without <code>_%</code>) used in Numerator or Denominator</td></tr>
+<tr><td><code>…, &lt;column&gt;: &#x27;&lt;name&gt;&#x27; is a raw material, not a component. To limit how much of it is used, put it in UsageLimits.</code></td><td>Error</td><td>A raw material name (in any capitals) used in Numerator or Denominator (<a href="#55-usagelimits-optional">5.5</a>)</td></tr>
+<tr><td><code>…, &lt;column&gt;: component &#x27;&lt;name&gt;&#x27; is not a column in RawMaterials. Components available: &lt;list&gt;.</code></td><td>Error</td><td>None of the above, and no close spelling: a typo, or a component column missing in RawMaterials</td></tr>
+<tr><td><code>…: give a Min, a Max, or both.</code></td><td>Error</td><td></td></tr>
+<tr><td><code>…: Min (&lt;a&gt;) is greater than Max (&lt;b&gt;).</code></td><td>Error</td><td></td></tr>
+<tr><td><code>…: after the margin the internal range is empty: Min + margin = &lt;a&gt; is greater than Max - margin = &lt;b&gt;. Reduce the margin.</code></td><td>Error</td><td></td></tr>
+<tr><td><code>…: Max - margin = &lt;x&gt; is negative. Reduce the margin.</code></td><td>Error</td><td></td></tr>
+<tr><td><code>…: Min + margin = &lt;x&gt; % is above 100 % and can never be met.</code></td><td>Error</td><td>Only for plain components (not with a factor above 1)</td></tr>
+<tr><td><code>&lt;sheet&gt;: no spec rows; the cheapest raw material mix will be chosen without limits.</code></td><td>Warning</td><td></td></tr>
+</tbody></table></div>
+<p>Problems in a Numerator or Denominator expression (each preceded by the sheet, row and column):</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Message</th>
+<th>Meaning</th>
+</tr></thead>
+<tbody>
+<tr><td><code>the expression is empty</code></td><td></td></tr>
+<tr><td><code>&#x27;&lt;expr&gt;&#x27; has an empty component name: check for &#x27;++&#x27;, or a &#x27;+&#x27; at the start or end</code></td><td></td></tr>
+<tr><td><code>&#x27;&lt;expr&gt;&#x27;: subtraction (&#x27;-&#x27;) is not supported; write every term with a positive factor joined by &#x27;+&#x27;</code></td><td></td></tr>
+<tr><td><code>in &#x27;&lt;expr&gt;&#x27;, the term &#x27;&lt;term&gt;&#x27; starts with a number; put &#x27;*&#x27; between the factor and the component (did you mean &lt;n&gt;*&lt;name&gt;?)</code></td><td>e.g. <code>1.8895Al</code></td></tr>
+<tr><td><code>in &#x27;&lt;expr&gt;&#x27;, the term &#x27;&lt;term&gt;&#x27; has more than one &#x27;*&#x27;; write one factor per component, e.g. 1.8895*Al</code></td><td></td></tr>
+<tr><td><code>in &#x27;&lt;expr&gt;&#x27;, the term &#x27;&lt;term&gt;&#x27; has no factor before &#x27;*&#x27;, e.g. 1.8895*Al</code></td><td></td></tr>
+<tr><td><code>in &#x27;&lt;expr&gt;&#x27;, the term &#x27;&lt;term&gt;&#x27; has no component after &#x27;*&#x27;</code></td><td></td></tr>
+<tr><td><code>in &#x27;&lt;expr&gt;&#x27;, the term &#x27;&lt;term&gt;&#x27; has the factor after the component; write it first: &lt;n&gt;*&lt;name&gt;</code></td><td>e.g. <code>Al*1.8895</code></td></tr>
+<tr><td><code>in &#x27;&lt;expr&gt;&#x27;, the factor &#x27;&lt;text&gt;&#x27; is not a number</code> (with a comma: <code>(use a decimal point, e.g. 1.8895)</code>)</td><td></td></tr>
+<tr><td><code>in &#x27;&lt;expr&gt;&#x27;, the factor of &lt;name&gt; is 0; it must be greater than 0</code></td><td></td></tr>
+<tr><td><code>&#x27;&lt;expr&gt;&#x27; lists &lt;name&gt; more than once; write each component once, with the combined factor</code></td><td></td></tr>
+</tbody></table></div>
+<h3 id="a5-settings">A.5 Settings</h3>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Message</th>
+<th>Type</th>
+<th>Meaning</th>
+</tr></thead>
+<tbody>
+<tr><td><code>&lt;sheet&gt; row &lt;n&gt;: the row has values but Key is blank.</code></td><td>Error</td><td></td></tr>
+<tr><td><code>&lt;sheet&gt; row &lt;n&gt;: unknown setting &#x27;&lt;key&gt;&#x27; is ignored. Did you mean &#x27;&lt;key&gt;&#x27;?</code></td><td>Warning</td><td></td></tr>
+<tr><td><code>&lt;sheet&gt; row &lt;n&gt;: setting &#x27;&lt;key&gt;&#x27; appears more than once.</code></td><td>Error</td><td></td></tr>
+<tr><td><code>&lt;sheet&gt;: Product_name not given; using &#x27;&lt;file name&gt;&#x27;.</code></td><td>Warning</td><td></td></tr>
+<tr><td><code>… &#x27;Spec_basis&#x27;: &#x27;&lt;text&gt;&#x27; is not allowed; use one of dry, as_received, ignited.</code></td><td>Error</td><td></td></tr>
+<tr><td><code>… &#x27;&lt;key&gt;&#x27;: must be greater than 0.</code></td><td>Error</td><td>Batch_size_kg or Scale_resolution_kg</td></tr>
+</tbody></table></div>
+<h3 id="a6-usagelimits">A.6 UsageLimits</h3>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Message</th>
+<th>Type</th>
+<th>Meaning</th>
+</tr></thead>
+<tbody>
+<tr><td><code>&lt;sheet&gt;: needs a Min_use_% and/or Max_use_% column.</code></td><td>Error</td><td></td></tr>
+<tr><td><code>&lt;sheet&gt; row &lt;n&gt;: Name is blank.</code></td><td>Error</td><td></td></tr>
+<tr><td><code>… &#x27;&lt;name&gt;&#x27;: not a raw material in RawMaterials. Did you mean &#x27;&lt;name&gt;&#x27;?</code></td><td>Error</td><td></td></tr>
+<tr><td><code>… &#x27;&lt;name&gt;&#x27;: listed more than once.</code></td><td>Error</td><td></td></tr>
+<tr><td><code>… Min_use_% (&lt;a&gt;) is greater than Max_use_% (&lt;b&gt;).</code></td><td>Error</td><td></td></tr>
+<tr><td><code>… the effective limits conflict. Effective Min = &lt;a&gt; % (plant &lt;p&gt;, product &lt;q&gt;) is greater than effective Max = &lt;b&gt; % (plant &lt;p&gt;, product &lt;q&gt;).</code></td><td>Error</td><td>Plant and product limits cannot both be met</td></tr>
+</tbody></table></div>
+<h3 id="a7-whatif">A.7 WhatIf</h3>
+<p>Checked when the workbook is read:</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Message</th>
+<th>Type</th>
+</tr></thead>
+<tbody>
+<tr><td><code>… Scenario is blank; give the scenario a name.</code></td><td>Error</td></tr>
+<tr><td><code>… Change type &#x27;&lt;text&gt;&#x27; is not known. Did you mean &#x27;&lt;type&gt;&#x27;? Use one of: Price, Spec Min, Spec Max, Spec Margin, Usage Min, Usage Max.</code></td><td>Error</td></tr>
+<tr><td><code>… Item is blank; give the &lt;raw material / spec&gt; to change.</code></td><td>Error</td></tr>
+<tr><td><code>… &#x27;&lt;item&gt;&#x27; is not a raw material in RawMaterials.</code> / <code>… is not a spec in Specs.</code> (with a suggestion)</td><td>Error</td></tr>
+<tr><td><code>… &#x27;&lt;type&gt;&#x27; for &#x27;&lt;item&gt;&#x27; is already given in row &lt;n&gt; of this scenario.</code></td><td>Error</td></tr>
+<tr><td><code>…, New value: value is blank.</code></td><td>Error (Price needs a value)</td></tr>
+</tbody></table></div>
+<p>Checked when the run starts, for each scenario as a whole (<code>WhatIf scenario &#x27;&lt;name&gt;&#x27;: …</code>):</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Message</th>
+<th>Meaning</th>
+</tr></thead>
+<tbody>
+<tr><td><code>WhatIf scenario &#x27;&lt;name&gt;&#x27;: Spec &#x27;&lt;spec&gt;&#x27;: &lt;a spec problem from A.4&gt;</code></td><td>e.g. a new Min above the Max</td></tr>
+<tr><td><code>WhatIf scenario &#x27;&lt;name&gt;&#x27;: Usage limit for &#x27;&lt;material&gt;&#x27;: need 0 &lt;= Min &lt;= Max &lt;= 100, got Min &lt;a&gt;, Max &lt;b&gt;.</code></td><td></td></tr>
+<tr><td><code>WhatIf scenario &#x27;&lt;name&gt;&#x27;: Usage limit for &#x27;&lt;material&gt;&#x27; conflicts with the plant-wide limit: effective Min &lt;a&gt; % &gt; effective Max &lt;b&gt; %.</code></td><td></td></tr>
+</tbody></table></div>
+<h3 id="a8-diagnosis-no-recipe">A.8 Diagnosis (no recipe)</h3>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Message</th>
+<th>Meaning</th>
+</tr></thead>
+<tbody>
+<tr><td><code>No recipe: the solver status is &#x27;Infeasible&#x27;.</code></td><td>No mix meets every limit</td></tr>
+<tr><td><code>Pre-check: every limit can be met on its own, so some limits conflict with each other.</code></td><td>Look at the elastic model's list</td></tr>
+<tr><td><code>The minimum usage limits add up to &lt;x&gt; % of the blend, more than 100 % (&lt;list&gt;).</code></td><td>Usage minimums leave no room</td></tr>
+<tr><td><code>The maximum usage limits add up to only &lt;x&gt; %, so the allowed raw materials cannot make up a whole blend (&lt;list&gt;).</code></td><td>Usage maximums are too tight</td></tr>
+<tr><td><code>No allowed raw material contains &lt;component&gt;, so &lt;limit&gt; (&lt;condition&gt;) cannot be met.</code></td><td></td></tr>
+<tr><td><code>&lt;limit&gt; (&lt;condition&gt;) cannot be met by any mix of the allowed raw materials, even ignoring all other spec limits: the highest (or lowest) achievable &lt;what&gt; is &lt;value&gt;.</code></td><td></td></tr>
+<tr><td><code>Raw materials that would help are restricted: &lt;material&gt; (&lt;content&gt;) is not allowed (Max 0 %, &lt;source&gt;); …</code> / <code>… is capped at &lt;x&gt; % (&lt;source&gt;)</code></td><td><code>&lt;source&gt;</code> is <code>UsageLimits</code>, <code>plant-wide limit in RawMaterials</code>, or <code>WhatIf (&lt;scenario&gt;)</code></td></tr>
+<tr><td><code>Elastic model: these limits cannot all be met together: &lt;list&gt;.</code></td><td>The conflicting set, kept to the limits really needed: each one was tested by taking it away (<a href="#81-how-the-tool-explains-it">8.1</a>)</td></tr>
+<tr><td><code>&lt;limit&gt; (&lt;condition&gt;): the highest (or lowest) &lt;what&gt; achievable while &lt;other limits&gt; and all other limits are held is &lt;value&gt;.</code></td><td>The best possible value for this limit</td></tr>
+<tr><td><code>&lt;limit&gt; (&lt;condition&gt;): even without this limit, the other limits cannot all be met.</code></td><td>There is a second, separate conflict among other limits; resolve the one shown and run again (<a href="#84-what-to-do-next">8.4</a>)</td></tr>
+<tr><td><code>Smallest total relative change that makes a blend possible (one way; there may be others): lower (or raise) &lt;limit&gt; from &lt;a&gt; to &lt;b&gt;.</code></td><td>One way out</td></tr>
+<tr><td><code>Elastic model: no answer (&lt;status&gt;). The usage limits themselves leave no possible blend; see the pre-check.</code></td><td>Correct the usage limits first</td></tr>
+</tbody></table></div>
+<h3 id="a9-price-ranges">A.9 Price ranges</h3>
+<p>Under the table on screen (<code>Notes:</code>, one line per raw material) and in the Note column of the Price ranges sheet (<a href="#79-price-ranges">7.9</a>):</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Message</th>
+<th>Meaning</th>
+</tr></thead>
+<tbody>
+<tr><td><code>Recipe unchanged at every price tested (Rs 0 to &lt;price&gt;)</code></td><td>The material's share is fixed by the limits, whatever it costs (in the range tested)</td></tr>
+<tr><td><code>No lower limit: unchanged down to Rs 0</code></td><td>The recipe stays the same however cheap the material gets</td></tr>
+<tr><td><code>No upper limit found up to Rs &lt;price&gt; (&lt;n&gt;x the current price)</code></td><td>The recipe stays the same up to the highest price tested</td></tr>
+<tr><td><code>Not used now; enters the recipe below Rs &lt;price&gt;</code></td><td>The material is at 0 %; below this price it would be used</td></tr>
+<tr><td><code>Not available: price ranges need a feasible base case (see the Diagnosis sheet).</code></td><td>No recipe exists, so there is no price range</td></tr>
+</tbody></table></div>
+<hr>
+<h2 id="appendix-b-for-the-maintainer">Appendix B. For the maintainer</h2>
+<p>This appendix is for whoever looks after the tool. It contains the only programming detail in this guide.</p>
+<p><strong>Project structure</strong></p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Path</th>
+<th>Responsibility</th>
+</tr></thead>
+<tbody>
+<tr><td><code>run.py</code></td><td>Command-line entry point: runs the base case, the price ranges and the WhatIf scenarios, writes one report</td></tr>
+<tr><td><code>blend_optimizer\config.py</code></td><td>All constants: sheet and column names, lab convention, display decimals, tolerances</td></tr>
+<tr><td><code>blend_optimizer\data.py</code></td><td>Data classes passed between modules (raw materials, spec rows, terms, scenarios)</td></tr>
+<tr><td><code>blend_optimizer\inputs.py</code></td><td>Reads and validates the workbooks; <code>parse_expression</code> is the one reader of Numerator/Denominator expressions</td></tr>
+<tr><td><code>blend_optimizer\linear_rows.py</code></td><td>Turns each spec limit into one linear row (basis conversion, ratios, factors)</td></tr>
+<tr><td><code>blend_optimizer\model.py</code></td><td>Builds the PuLP problem (normal and elastic)</td></tr>
+<tr><td><code>blend_optimizer\solve_and_report.py</code></td><td>Solves it (<code>make_solver</code> is the only place the solver is named), reads the results, builds the report tables, writes Excel and the console summary</td></tr>
+<tr><td><code>blend_optimizer\pipeline.py</code></td><td>Solve → diagnose if infeasible (including the reduction of the conflict set to the limits really needed) → report</td></tr>
+<tr><td><code>blend_optimizer\rounding.py</code></td><td>The one rounding rule for display (half up), used on screen and in Excel</td></tr>
+<tr><td><code>blend_optimizer\diagnose.py</code></td><td>Pre-checks and the plain-language diagnosis (no solver)</td></tr>
+<tr><td><code>blend_optimizer\what_if.py</code></td><td>What-if scenarios, the WhatIf sheet runs, price ranging</td></tr>
+<tr><td><code>blend_optimizer\templates.py</code>, <code>examples.py</code>, <code>make_templates.py</code></td><td>Template writer, example datasets, template generator</td></tr>
+<tr><td><code>tests\</code></td><td>The test suite</td></tr>
+<tr><td><code>docs\User_Guide.md</code>, <code>docs\build_html.py</code></td><td>This guide and its HTML converter</td></tr>
+</tbody></table></div>
+<p><strong>PuLP is used only in <code>model.py</code> and <code>solve_and_report.py</code>.</strong> A test fails if any other module imports it.</p>
+<p><strong>Settings in <code>config.py</code></strong> that you may need to change:</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Constant</th>
+<th>Default</th>
+<th>What it controls</th>
+</tr></thead>
+<tbody>
+<tr><td><code>LAB_ANALYSIS_CONVENTION</code></td><td><code>dry_incl_loi</code></td><td>How analyses are read; <code>loi_free</code> converts LOI-free analyses with c_dry = c × (1 − LOI/100)</td></tr>
+<tr><td><code>ANALYSIS_TOTAL_WARN_RANGE</code></td><td>(97.0, 103.0)</td><td>The analysis total check</td></tr>
+<tr><td><code>DISPLAY_DECIMALS_PCT</code>, <code>DISPLAY_DECIMALS_KG</code>, <code>DISPLAY_DECIMALS_RS</code></td><td>2, 1, 0</td><td>Display rounding</td></tr>
+<tr><td><code>SCALE_RESOLUTION_KG</code></td><td>0.1</td><td>Default scale resolution (Settings can override it)</td></tr>
+<tr><td><code>BINDING_TOLERANCE</code></td><td>1e-6</td><td>Slack below this counts as binding</td></tr>
+<tr><td><code>ELASTIC_MIN_LIMIT</code></td><td>0.01</td><td>The smallest limit size used to weight violations in the elastic model</td></tr>
+</tbody></table></div>
+<p><strong>Running the tests</strong> (with the environment active):</p>
+<pre><code>python -m pytest</code></pre>
+<p>At the time of writing: <code>273 passed</code>.</p>
+<p><strong>Regenerating the templates</strong> (after changing <code>examples.py</code> or <code>templates.py</code>):</p>
+<pre><code>python make_templates.py</code></pre>
+<p>This rewrites the 13 workbooks in <code>templates\</code>.</p>
+<p><strong>Rebuilding the HTML version of this guide</strong> (after editing <code>docs\User_Guide.md</code>):</p>
+<pre><code>python docs\build_html.py</code></pre>
+<p><strong>PuLP 4.x notes.</strong> PuLP 4 changed its API, and most examples online are for 2.x/3.x:</p>
+<ul>
+<li>Variables are created with <code>prob.add_variable(name, lowBound=…, upBound=…)</code>; <code>LpVariable(...)</code> raises <code>TypeError</code>.
+</li>
+<li><code>prob.constraints()</code> returns a list; <code>prob.get_constraint_by_name(name)</code> finds one constraint.
+</li>
+<li><code>prob.solve(solver)</code> returns an <code>LpSolveStats</code> object: use <code>.status</code> and <code>.has_solution</code>.
+</li>
+<li>CBC is not bundled and <code>LpSolverDefault</code> is <code>None</code>, so the solver is always passed explicitly (<code>HiGHS(msg=False)</code> in <code>make_solver</code>).
+</li>
+<li>After a HiGHS solve, <code>constraint.pi</code> holds the dual (d cost / d right-hand side) and <code>variable.dj</code> the reduced cost; both are populated for LPs.
+</li>
+<li>Variables only work while their <code>LpProblem</code> exists, so results are copied into a plain <code>SolveResult</code> immediately after solving.
+</li>
+<li>PuLP changes names (spaces become <code>_</code>), so the model keeps its own name maps instead of looking things up by PuLP name.
+</li></ul>
+<p><strong>Price ranging from Python</strong>: <code>blend_optimizer.what_if.price_ranging(load_inputs(...), tolerance_rs=1.0, search_factor=10.0)</code>.</p>
+<p><strong>Exit codes</strong> are set in <code>run.py</code> (<code>EXIT_RECIPE_FOUND</code>, <code>EXIT_INPUT_ERRORS</code>, <code>EXIT_NO_RECIPE</code>).</p>
+<footer>Generated from User_Guide.md by docs/build_html.py.</footer>
+</main>
+</body>
+</html>

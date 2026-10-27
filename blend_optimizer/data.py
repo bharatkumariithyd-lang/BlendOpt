@@ -88,6 +88,10 @@ class RawMaterial:
         composition: Component -> wt %, dry basis (already converted if the
             lab reports on an LOI-free basis). Contains every component
             column of the sheet; blanks are 0.
+        not_analysed: Components whose cell was left blank ("not analysed"),
+            as opposed to typed as 0 ("analysed, none present"). Both count
+            as 0 in the calculation; a blank in a component that a spec uses
+            gives a warning.
     """
 
     name: str
@@ -97,6 +101,7 @@ class RawMaterial:
     loi_pct: float
     plant_limit: UsageLimit
     composition: dict[str, float]
+    not_analysed: frozenset[str] = frozenset()
 
     @property
     def dry_cost(self) -> float:

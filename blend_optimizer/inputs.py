@@ -37,6 +37,7 @@ import pandas as pd
 from openpyxl.utils import get_column_letter
 
 from blend_optimizer import config
+from blend_optimizer.rounding import format_fixed
 from blend_optimizer.data import (
     BlendData,
     InputError,
@@ -232,19 +233,19 @@ def analysis_total_warning(
     if low <= total <= high:
         return None
     message = (
-        f"RawMaterials '{material_name}': {total_label} = {total:.2f} %, outside the "
+        f"RawMaterials '{material_name}': {total_label} = {format_fixed(total, 2)} %, outside the "
         f"expected {low:g}-{high:g} % for the '{convention}' lab convention."
     )
     if loi_pct > 0 and low <= other_total <= high:
         message += (
-            f" {other_label.capitalize()} = {other_total:.2f} %, which looks like the "
+            f" {other_label.capitalize()} = {format_fixed(other_total, 2)} %, which looks like the "
             f"'{other_convention}' convention. Check the lab report and "
             f"LAB_ANALYSIS_CONVENTION in config.py."
         )
     else:
         message += (
-            f" Neither convention fits (components alone = {components_total:.2f} %, "
-            f"components + LOI = {with_loi:.2f} %): check for a missing component "
+            f" Neither convention fits (components alone = {format_fixed(components_total, 2)} %, "
+            f"components + LOI = {format_fixed(with_loi, 2)} %): check for a missing component "
             f"column, a typing error or a missing LOI."
         )
     return message
@@ -300,8 +301,8 @@ def load_inputs(
         if rm_raw is None:
             issues.error(
                 f"No '{config.SHEET_RAW_MATERIALS}' sheet in {product_path.name}, and no master "
-                f"raw-material file was given. Add the sheet, or pass the master file "
-                f"(raw_materials_file=...)."
+                f"raw-material file was given. Add the sheet, or give the master raw-material "
+                f"file with --raw-materials."
             )
 
     specs_raw = _find_sheet(product_sheets, config.SHEET_SPECS, product_path, issues, required=True)
@@ -320,7 +321,7 @@ def load_inputs(
     spec_names: list[str] = []  # every name in Specs, valid or not (for the WhatIf check)
     if specs_raw is not None:
         table = _make_table(specs_raw, config.SHEET_SPECS, product_path, config.SPEC_COLUMNS)
-        specs = _parse_specs(table, components, issues)
+        specs = _parse_specs(table, components, issues, listed_names)
         spec_names = [_text(row.get(config.COL_NAME)) for row in table.rows if _text(row.get(config.COL_NAME))]
 
     settings = Settings(product_name=product_path.stem)
@@ -333,7 +334,9 @@ def load_inputs(
         table = _make_table(usage_raw, config.SHEET_USAGE_LIMITS, product_path, config.USAGE_LIMIT_COLUMNS)
         product_limits = _parse_usage_limits(table, materials, listed_names, issues)
 
-    what_if_raw = _find_sheet(product_sheets, config.SHEET_WHAT_IF, product_path, issues, required=False)
+    _warn_not_analysed(materials, specs, product_limits, issues)
+
+    what_if_raw =_find_sheet(product_sheets, config.SHEET_WHAT_IF, product_path, issues, required=False)
     scenarios: list[Scenario] = []
     if what_if_raw is not None:
         table = _make_table(what_if_raw, config.SHEET_WHAT_IF, product_path, config.WHAT_IF_COLUMNS)
@@ -639,13 +642,19 @@ def _parse_choice(value: object, choices: tuple[str, ...], where: str, issues: _
 
 
 def _parse_expression_cell(
-    value: object, where: str, known: list[str] | None, issues: _Issues, required: bool
+    value: object, where: str, known: list[str] | None, issues: _Issues, required: bool,
+    raw_material_names: Iterable[str] = (),
 ) -> tuple[Term, ...] | None:
     """Read a Numerator/Denominator cell (via :func:`parse_expression`) and check its components exist.
+
+    A name that is not a component gets a message saying what it is instead:
+    a property column (LOI_%, Moisture_%, the cost or usage columns), a raw
+    material (which belongs in UsageLimits), or a likely typo.
 
     Args:
         known: Component columns of RawMaterials, or None to skip the check
             (when RawMaterials itself could not be read).
+        raw_material_names: Every name listed in RawMaterials.
 
     Returns:
         The terms (``()`` for an optional blank cell), or None if invalid.
@@ -663,13 +672,20 @@ def _parse_expression_cell(
 
     if known is None:
         return tuple(terms)
+    property_columns = {_normalise(column) for column in config.RAW_MATERIAL_FIXED_COLUMNS}
+    materials_lower = {material.lower() for material in raw_material_names}
     ok = True
     for name in (term.component for term in terms):
         if name in known:
             continue
         ok = False
         suggestion = suggest_close_match(name, known)
-        if suggestion:
+        if _normalise(name) in property_columns:  # LOI_%, Moisture_%, Cost_Rs_per_t, ... (leniently matched)
+            issues.error(f"{where}: '{name}' is a property column, not a component, so it can't be used in a spec.")
+        elif name.lower() in materials_lower:
+            issues.error(f"{where}: '{name}' is a raw material, not a component. To limit how much of it is used, "
+                         f"put it in {config.SHEET_USAGE_LIMITS}.")
+        elif suggestion:
             issues.error(
                 f"{where}: component '{name}' is not a column in RawMaterials. "
                 f"Did you mean '{suggestion}'? (Component names must match exactly.)"
@@ -783,6 +799,8 @@ def _parse_raw_materials(
             loi_pct=loi,
             plant_limit=UsageLimit(min_use, max_use),
             composition=analysis_to_dry_basis(reported, loi, convention),
+            # Blank = "not analysed"; 0 = "analysed, none present". Both count as 0.
+            not_analysed=frozenset(component for component in components if _is_blank(row.get(component))),
         )
 
     if not table.rows:
@@ -790,8 +808,40 @@ def _parse_raw_materials(
     return materials, components, listed_names
 
 
-def _parse_specs(table: _Table, components: list[str] | None, issues: _Issues) -> list[SpecRow]:
-    """Parse the Specs sheet (one row per limit)."""
+def _warn_not_analysed(
+    materials: dict[str, RawMaterial], specs: list[SpecRow], product_limits: dict[str, UsageLimit], issues: _Issues
+) -> None:
+    """Warn about blank analysis cells that could change the answer.
+
+    A blank cell means "not analysed" and a 0 means "analysed, none present";
+    both count as 0. A blank matters when a spec uses that component and the
+    material may be used (effective Max_use_% above 0): the recipe may then
+    rely on a value nobody measured. One warning per material and component.
+    """
+    used: list[str] = []  # components used by any spec, in the order first used
+    for spec in specs:
+        for term in spec.numerator + spec.denominator:
+            if term.component not in used:
+                used.append(term.component)
+    for name, material in materials.items():
+        allowed = material.plant_limit.tighter(product_limits.get(name, UsageLimit())).max_pct > 0
+        if not allowed:
+            continue
+        for component in used:
+            if component in material.not_analysed:
+                issues.warn(f"RawMaterials '{name}': {component} is blank (not analysed) and is counted as 0, "
+                            f"but a spec uses it. Type 0 if it is genuinely absent.")
+
+
+def _parse_specs(table: _Table, components: list[str] | None, issues: _Issues,
+                 raw_material_names: list[str] | None = None) -> list[SpecRow]:
+    """Parse the Specs sheet (one row per limit).
+
+    Args:
+        raw_material_names: Every name in RawMaterials, so a raw material
+            typed in Specs gets a message pointing to UsageLimits.
+    """
+    raw_material_names = raw_material_names or []
     if not _require_columns(table, config.SPEC_REQUIRED_COLUMNS, issues):
         return []
     _check_unknown_columns(table, config.SPEC_COLUMNS, issues)
@@ -814,10 +864,11 @@ def _parse_specs(table: _Table, components: list[str] | None, issues: _Issues) -
         errors_before = len(issues.errors)
 
         numerator = _parse_expression_cell(row.get(config.COL_NUMERATOR), f"{where}, {config.COL_NUMERATOR}",
-                                           components, issues, required=True)
+                                           components, issues, required=True,
+                                           raw_material_names=raw_material_names)
         denominator = _parse_expression_cell(row.get(config.COL_DENOMINATOR),
                                              f"{where}, {config.COL_DENOMINATOR}", components, issues,
-                                             required=False)
+                                             required=False, raw_material_names=raw_material_names)
         min_value = _parse_number(row.get(config.COL_MIN), f"{where}, {config.COL_MIN}", issues)
         max_value = _parse_number(row.get(config.COL_MAX), f"{where}, {config.COL_MAX}", issues)
         margin = _parse_number(row.get(config.COL_MARGIN), f"{where}, {config.COL_MARGIN}", issues, default=0.0)

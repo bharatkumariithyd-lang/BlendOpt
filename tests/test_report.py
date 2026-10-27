@@ -4,6 +4,7 @@ import math
 from dataclasses import replace
 
 import openpyxl
+import pandas as pd
 import pytest
 
 from blend_optimizer import config, examples
@@ -12,6 +13,7 @@ from blend_optimizer.data import UsageLimit
 from blend_optimizer.inputs import load_inputs
 from blend_optimizer.model import build_model
 from blend_optimizer.pipeline import optimise
+from blend_optimizer.rounding import format_fixed, round_half_up
 
 
 def _load(write_example, example, file_name="product.xlsx"):
@@ -202,6 +204,44 @@ def test_format_number():
     assert sr.format_number(None, sr.RS) == ""
     assert sr.format_number(math.inf, sr.PCT) == "inf"
     assert sr.format_number("Binding (Min)", sr.PCT) == "Binding (Min)"
+
+
+def test_round_half_up_helper():
+    # Ties go away from zero, judged on the number as written (78.895 is
+    # stored as 78.89499999..., so plain Python formatting would give 78.89)
+    assert round_half_up(78.895, 0.01) == 78.9
+    assert round_half_up(2.5) == 3 and round_half_up(3.5) == 4      # not "round half to even"
+    assert round_half_up(-2.5) == -3
+    assert round_half_up(12.25, 0.5) == 12.5 and round_half_up(12.24, 0.5) == 12.0
+    assert round_half_up(1234.0, 5) == 1235.0
+    assert format_fixed(78.895, 2) == "78.90"
+    assert format_fixed(12744.5, 0, thousands=True) == "12,745"
+    assert format_fixed(-0.004, 2) == "0.00"                          # never "-0.00"
+
+
+def test_format_number_rounds_half_up_everywhere():
+    assert sr.format_number(78.895, sr.PCT) == "78.90"
+    assert sr.format_number(0.125, sr.PCT, decimals=2) == "0.13"
+    assert sr.format_number(12744.5, sr.RS) == "12,745"
+    assert sr.format_number(2.5, sr.RS) == "3"
+    assert sr.format_number(-2.5, sr.RS) == "-3"
+    assert sr.format_number(0.15, sr.KG, scale_resolution_kg=0.1) == "0.2"
+    assert sr.format_number(12.25, sr.KG, scale_resolution_kg=0.5) == "12.5"
+    assert sr.round_to_scale(0.25, 0.1) == 0.3
+
+
+def test_weigh_sheet_rounds_half_up():
+    # 12.25 and 37.75 are both ties at 0.5 kg: half up gives 12.5 + 38.0 = 50.5, so the
+    # -0.5 kg goes on the largest. (Round half to even would have given 12.0 + 38.0.)
+    assert sr.weigh_sheet_rounding([12.25, 37.75], 0.5) == ([12.5, 37.5], 50.0, 1, -0.5)
+
+
+def test_excel_kg_cells_round_half_up(tmp_path):
+    recipe = pd.DataFrame({"Raw material": ["A", "B", "TOTAL"], "Dry mass (kg/batch)": [0.25, 1.74, 1.99]})
+    path = sr.write_excel({"Recipe": recipe}, tmp_path / "kg.xlsx", scale_resolution_kg=0.1)
+    sheet = openpyxl.load_workbook(path)["Recipe"]
+    # 0.25 -> 0.3 (half up), 1.74 -> 1.7, total 1.99 -> 2.0: they add up, so no adjustment
+    assert [sheet.cell(row, 2).value for row in (2, 3, 4)] == [0.3, 1.7, 2.0]
 
 
 def test_column_kinds():

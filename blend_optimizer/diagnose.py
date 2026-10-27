@@ -28,6 +28,7 @@ import pandas as pd
 from blend_optimizer import config
 from blend_optimizer import solve_and_report as sr
 from blend_optimizer.data import BlendData, Term
+from blend_optimizer.rounding import format_fixed
 from blend_optimizer.linear_rows import MIN, LinearRow, achieved_value, build_linear_rows, linearise
 from blend_optimizer.solve_and_report import SolveResult
 
@@ -216,11 +217,12 @@ def _usage_findings(data: BlendData) -> list[PrecheckFinding]:
     if total_min > 100.0 + 1e-7:
         parts = ", ".join(f"{name} min {limit.min_pct:g} %" for name, limit in limits.items() if limit.min_pct > 0)
         findings.append(PrecheckFinding(
-            f"The minimum usage limits add up to {total_min:.2f} % of the blend, more than 100 % ({parts})."))
+            f"The minimum usage limits add up to {format_fixed(total_min, 2)} % of the blend, more than 100 % "
+            f"({parts})."))
     if total_max < 100.0 - 1e-7:
         parts = ", ".join(f"{name} max {limit.max_pct:g} %" for name, limit in limits.items())
         findings.append(PrecheckFinding(
-            f"The maximum usage limits add up to only {total_max:.2f} %, so the allowed raw materials "
+            f"The maximum usage limits add up to only {format_fixed(total_max, 2)} %, so the allowed raw materials "
             f"cannot make up a whole blend ({parts})."))
     return findings
 

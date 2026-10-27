@@ -62,7 +62,11 @@ sheet with a short version of the instructions below.
 ### General rules
 
 * Keep the column headers in **row 1** and do not rename them. Blank rows are ignored.
-* Type **plain numbers**: no units, no `<0.01`, no `nd`. A blank analysis cell counts as 0.
+* Type **plain numbers**: no units, no `<0.01`, no `nd`.
+* In the analysis columns, a **blank** cell means "not analysed" and a **0** means "analysed, none
+  present". Both count as 0 in the calculation. But a blank in a component that a spec uses, for a raw
+  material the blend may use, gives a warning naming the material and the component: the recipe would rely
+  on a value nobody measured. Type 0 if it is genuinely absent.
 * Names (raw materials, components, specs) are matched **exactly**: `Al2O3` and `AL2O3` are different.
   If you make a typo, the error message suggests the name you probably meant.
 
@@ -220,13 +224,19 @@ report's name (the default is `output\<product>_result.xlsx`), and `--quiet` to 
 **Close the report in Excel before running again.** Otherwise the tool cannot overwrite it and says
 `If the report is open in Excel, close it and run again.`
 
+**Exit codes**, for batch files and scripts that run the tool: `0` = a recipe was found; `1` = input errors,
+nothing was solved (or the report could not be written); `2` = no recipe for the base case: it is
+infeasible, and the report with the diagnosis is still written. A scenario that cannot be met does not
+change the exit code.
+
 ---
 
 ## 4. Reading the report
 
 All figures are calculated at full precision and only rounded for display: wt % to 2 decimals (spec
 limits get one more decimal than you typed, e.g. P 0.030), kg to the scale resolution, and rupees to whole
-numbers. Empty cells mean "not applicable". Each sheet has short notes in italics below its table.
+numbers. Halves are rounded up, on screen and in Excel alike: 78.895 shows as 78.90 and Rs 12,744.5 as
+12,745. Empty cells mean "not applicable". Each sheet has short notes in italics below its table.
 
 ### Summary
 The product, the **solver status** (`Optimal` = a recipe was found; `Infeasible` = no recipe meets all
@@ -283,6 +293,7 @@ that material's own price basis) within which **today's recipe stays exactly the
 only the cost changes; outside it the optimizer would choose a different recipe.
 * A blank end means no limit was found in the range tested (Rs 0 up to 10 times today's price); the Note
   says which. A material whose share is fixed by the limits can show "unchanged at every price tested".
+  The same notes are printed on screen under the price-range table.
 * For a raw material not in the recipe, *Unchanged from* is the price below which it would come in. It
   agrees with the Reduced costs sheet.
 * The ends are found by re-solving at trial prices, to within Rs 1/t. A recipe counts as unchanged if no
@@ -299,8 +310,9 @@ Explains in plain language why the specification cannot be met, in two steps:
    limits that no mix could ever meet, e.g. `No allowed raw material contains CaF2, so CaF2_min (CaF2 >=
    2.00 %) cannot be met`, and names the raw materials that would help but are banned or capped.
 2. **Conflicting limits.** When every limit can be met on its own but not all together, the report names
-   the limits that clash and, for each of them, **the best value achievable while all the other limits are
-   held**. Example: `the highest Al2O3 achievable while CaO >= 50.00 % and all other limits are held is
+   the limits that clash. The list is kept to the limits really needed: each one is tested by removing it,
+   and if the problem still cannot be met without it, it is left out. For each limit named, the report gives
+   **the best value achievable while all the other limits are held**. Example: `the highest Al2O3 achievable while CaO >= 50.00 % and all other limits are held is
    39.77 %`. It then suggests the smallest relative change that makes a blend possible. That is one way out;
    moving one of the other named limits also works.
 

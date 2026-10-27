@@ -30,6 +30,7 @@ from pulp import HiGHS, LpSolver, LpSolveStats, LpSolveStatus
 
 from blend_optimizer import config
 from blend_optimizer.data import BlendData, Term, price_from_dry_basis
+from blend_optimizer.rounding import format_fixed, round_half_up
 from blend_optimizer.linear_rows import (
     MIN,
     LinearRow,
@@ -388,6 +389,9 @@ def summary_table(data: BlendData, result: SolveResult) -> pd.DataFrame:
 #     other rows L sits inside the coefficients, so the cost curves a little
 #     even then: the shadow price is exact at the current limit only.
 
+# Unit of a usage limit (a share of the dry blend), as shown in report tables
+USAGE_UNIT = "wt % of dry blend"
+
 SHADOW_PRICE_COLUMNS = [
     "Constraint", "Type", "Limits", "Customer limit", "Internal target", "Limit unit", "Relax by",
     "Saving per 1 unit (Rs/dry t)", "Step", "Saving per step (Rs/dry t)",
@@ -474,7 +478,7 @@ def shadow_price_table(data: BlendData, result: SolveResult) -> pd.DataFrame:
             "Limits": name,
             "Customer limit": None,
             "Internal target": value,
-            "Limit unit": "wt % of dry blend",
+            "Limit unit": USAGE_UNIT,
             "Relax by": relax,
             "Saving per 1 unit (Rs/dry t)": saving,
             "Step": 1.0,
@@ -695,6 +699,9 @@ def cell_formats(table: pd.DataFrame, row_decimals: Sequence[int | None] | None 
     formats = []
     for row_index, (_, row) in enumerate(table.iterrows()):
         pct_decimals = limit_decimals(row[column] for column in sources)
+        if has_unit and row["Unit"] == USAGE_UNIT:
+            # A usage limit is a share of the blend: shown like the Recipe sheet's shares
+            pct_decimals = config.DISPLAY_DECIMALS_PCT
         if row_decimals is not None and row_decimals[row_index] is not None:
             pct_decimals = row_decimals[row_index]
         row_formats = []
@@ -707,8 +714,8 @@ def cell_formats(table: pd.DataFrame, row_decimals: Sequence[int | None] | None 
 
 
 def round_to_scale(value: float, resolution: float = config.SCALE_RESOLUTION_KG) -> float:
-    """Round a mass to the nearest multiple of the scale resolution (e.g. 0.5 kg)."""
-    return round(round(value / resolution) * resolution, 10)
+    """Round a mass to the nearest multiple of the scale resolution (e.g. 0.5 kg), half up."""
+    return round_half_up(value, resolution)
 
 
 def format_number(
@@ -737,10 +744,7 @@ def format_number(
         value = round_to_scale(value, scale_resolution_kg)
     if decimals is None:
         decimals = {KG: config.DISPLAY_DECIMALS_KG, RS: config.DISPLAY_DECIMALS_RS}.get(kind, config.DISPLAY_DECIMALS_PCT)
-    if round(value, decimals) == 0:
-        value = 0.0  # avoid showing "-0.00"
-    separator = "," if kind in (KG, RS) else ""
-    return f"{value:{separator}.{decimals}f}"
+    return format_fixed(value, decimals, thousands=kind in (KG, RS))  # rounds half up
 
 
 # ---------------------------------------------------------------------------
@@ -755,7 +759,8 @@ def weigh_sheet_rounding(values: Sequence[float], resolution: float) -> tuple[li
     (each can be off by up to half a step), so the difference is put on the
     largest value, where it matters least in relative terms.
 
-    The arithmetic is done in whole scale steps, so no float error creeps in.
+    Each value is rounded half up with the shared rule (``rounding.round_half_up``).
+    The adjustment is then done in whole scale steps, so no float error creeps in.
 
     Args:
         values: Masses in kg.
@@ -765,8 +770,13 @@ def weigh_sheet_rounding(values: Sequence[float], resolution: float) -> tuple[li
         (rounded values, rounded total, index of the adjusted value or None,
         difference added to it in kg).
     """
-    steps = [round(value / resolution) for value in values]
-    total_steps = round(sum(values) / resolution)
+    def whole_steps(mass: float) -> int:
+        # round_half_up gives an exact multiple of the step; round() only turns
+        # that multiple back into a whole number of steps (it is not a tie)
+        return round(round_half_up(mass, resolution) / resolution)
+
+    steps = [whole_steps(value) for value in values]
+    total_steps = whole_steps(sum(values))
     difference = total_steps - sum(steps)
     adjusted = None
     if difference and values:
@@ -824,9 +834,10 @@ def weigh_sheet_notes(adjustments: list[WeighAdjustment], resolution: float) -> 
         if adjustment.material is None:
             lines.append(f"{adjustment.column}: no rounding adjustment needed.")
         else:
+            sign = "+" if adjustment.difference_kg > 0 else ""
             lines.append(
                 f"{adjustment.column}: rounding difference of "
-                f"{adjustment.difference_kg:+.{config.DISPLAY_DECIMALS_KG}f} kg put on "
+                f"{sign}{format_fixed(adjustment.difference_kg, config.DISPLAY_DECIMALS_KG)} kg put on "
                 f"{adjustment.material} (the largest)."
             )
     return lines

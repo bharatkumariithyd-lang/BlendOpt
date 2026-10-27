@@ -199,7 +199,7 @@ def _changes_table(base: BlendData, scenario: BlendData) -> pd.DataFrame:
         old, new = base.effective_limit(name), scenario.effective_limit(name)
         for label, before, after in (("Min", old.min_pct, new.min_pct), ("Max", old.max_pct, new.max_pct)):
             if before != after:
-                records.append({"Change": f"Usage {label} (effective)", "Name": name, "Unit": "wt % of dry blend",
+                records.append({"Change": f"Usage {label} (effective)", "Name": name, "Unit": sr.USAGE_UNIT,
                                 "Base value": before, "Scenario value": after})
     return pd.DataFrame(records, columns=["Change", "Name", "Unit", "Base value", "Scenario value"])
 

@@ -249,6 +249,23 @@ ERROR_CASES = [
                  ["component 'Xyz' is not a column", "Components available: CaO, SiO2"], id="component-unknown"),
     pytest.param(lambda ex: spec(ex, "Basicity", config.COL_DENOMINATOR, "Si02"), ["Did you mean 'SiO2'?"],
                  id="denominator-typo"),
+    # A property column or a raw material typed where a component belongs
+    pytest.param(lambda ex: spec(ex, "P", config.COL_NUMERATOR, "LOI_%"),
+                 ["'P', Numerator: 'LOI_%' is a property column, not a component, so it can't be "
+                  "used in a spec."], id="property-loi"),
+    pytest.param(lambda ex: spec(ex, "P", config.COL_NUMERATOR, "LOI"),
+                 ["'LOI' is a property column, not a component"], id="property-loi-lenient"),
+    pytest.param(lambda ex: spec(ex, "Basicity", config.COL_DENOMINATOR, "Moisture_%"),
+                 ["Denominator: 'Moisture_%' is a property column, not a component"], id="property-moisture"),
+    pytest.param(lambda ex: spec(ex, "P", config.COL_NUMERATOR, "Cost_Rs_per_t"),
+                 ["'Cost_Rs_per_t' is a property column, not a component"], id="property-cost"),
+    pytest.param(lambda ex: spec(ex, "CaO", config.COL_NUMERATOR, "CaO+Max_use_%"),
+                 ["'Max_use_%' is a property column, not a component"], id="property-usage-in-sum"),
+    pytest.param(lambda ex: spec(ex, "CaF2", config.COL_NUMERATOR, "Fluorspar"),
+                 ["'CaF2', Numerator: 'Fluorspar' is a raw material, not a component. To limit how "
+                  "much of it is used, put it in UsageLimits."], id="raw-material-in-specs"),
+    pytest.param(lambda ex: spec(ex, "Al2O3", config.COL_NUMERATOR, "raw bauxite"),
+                 ["'raw bauxite' is a raw material, not a component"], id="raw-material-any-case"),
     pytest.param(lambda ex: spec(ex, "CaO", config.COL_NUMERATOR, "CaO++MgO"), ["empty component name"],
                  id="bad-component-sum"),
     pytest.param(lambda ex: spec(ex, "CaO", config.COL_NUMERATOR, "CaO+CaO"), ["lists CaO more than once"],
@@ -327,8 +344,8 @@ def test_no_component_columns(write_example):
 def test_missing_raw_materials_everywhere(write_example):
     product_only = slag().split()[1]
     error = errors_of(write_example(product_only))
-    assert len(error.errors) == 1
-    assert "No 'RawMaterials' sheet in product.xlsx, and no master raw-material file" in error.errors[0]
+    assert error.errors == ["No 'RawMaterials' sheet in product.xlsx, and no master raw-material file was given. "
+                            "Add the sheet, or give the master raw-material file with --raw-materials."]
 
 
 def test_master_file_without_raw_materials_sheet(write_example):
@@ -377,6 +394,60 @@ def test_as_received_price_without_moisture_warns(write_example):
     data = load_inputs(write_example(raw(slag(), "Lime", config.COL_MOISTURE, None)))
     assert data.raw_materials["Lime"].dry_cost == 9000
     assert any("'Lime': price is 'as_received' but Moisture_% is blank" in w for w in data.warnings)
+
+
+NOT_ANALYSED_P = ("RawMaterials 'Calcined bauxite': P is blank (not analysed) and is counted as 0, but a spec "
+                  "uses it. Type 0 if it is genuinely absent.")
+
+
+def test_blank_analysis_cell_warns_when_a_spec_uses_it(write_example):
+    data = load_inputs(write_example(raw(slag(), "Calcined bauxite", "P", None)))
+    bauxite = data.raw_materials["Calcined bauxite"]
+    assert bauxite.composition["P"] == 0            # still counted as 0 ...
+    assert bauxite.not_analysed == {"P"}            # ... but remembered as not analysed
+    assert data.warnings == [NOT_ANALYSED_P]
+
+
+def test_zero_analysis_cell_does_not_warn(write_example):
+    data = load_inputs(write_example(raw(slag(), "Calcined bauxite", "P", 0)))
+    assert data.raw_materials["Calcined bauxite"].not_analysed == frozenset()
+    assert data.warnings == []
+
+
+def test_blank_cell_in_a_component_no_spec_uses_does_not_warn(write_example):
+    data = load_inputs(write_example(raw(slag(), "Lime", "TiO2", None)))  # no TiO2 spec (and Lime has none)
+    assert data.raw_materials["Lime"].not_analysed == {"TiO2"}
+    assert data.warnings == []
+
+
+@pytest.mark.parametrize("ban", [
+    pytest.param(lambda ex: usage(ex, [("Calcined bauxite", None, 0)]), id="banned-in-UsageLimits"),
+    pytest.param(lambda ex: raw(ex, "Calcined bauxite", config.COL_MAX_USE, 0), id="plant-max-0"),
+])
+def test_blank_cell_of_a_material_not_allowed_does_not_warn(write_example, ban):
+    data = load_inputs(write_example(ban(raw(slag(), "Calcined bauxite", "P", None))))
+    assert data.warnings == []
+
+
+def test_blank_cell_in_a_denominator_or_factor_term_warns(write_example):
+    specs = examples.spec_table([
+        ("Basicity", "CaO", "SiO2", 8, None, None),                # SiO2 only in a denominator
+        ("CaO_eq", "CaO+1.4*MgO", None, 40, None, None),           # MgO only in a factor term
+    ])
+    example = raw(raw(replace(slag(), specs=specs), "Lime", "SiO2", None), "Lime", "MgO", None)
+    data = load_inputs(write_example(example))
+    # (The lower Lime total also gives the usual analysis-total warning)
+    assert [warning for warning in data.warnings if "not analysed" in warning] == [
+        "RawMaterials 'Lime': SiO2 is blank (not analysed) and is counted as 0, but a spec uses it. "
+        "Type 0 if it is genuinely absent.",
+        "RawMaterials 'Lime': MgO is blank (not analysed) and is counted as 0, but a spec uses it. "
+        "Type 0 if it is genuinely absent.",
+    ]
+
+
+def test_example_workbooks_have_no_blank_analysis_cells(write_example):
+    for example in (examples.hand_worked_example(), slag(), examples.synthetic_slag_example(with_what_if=True)):
+        assert not any("not analysed" in warning for warning in load_inputs(write_example(example)).warnings)
 
 
 def test_blank_price_basis_without_moisture_is_dry(write_example):

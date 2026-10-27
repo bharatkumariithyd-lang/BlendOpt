@@ -16,6 +16,9 @@ What it does:
        infeasible scenario is explained in the same way.
     6. Writes one report workbook (default: output\\<product>_result.xlsx)
        with the .lp file next to it, and prints a summary.
+
+Exit codes: 0 = recipe found, 1 = input errors (nothing solved),
+2 = no recipe for the base case (infeasible; the diagnosis is in the report).
 """
 
 import argparse
@@ -41,6 +44,11 @@ from blend_optimizer.what_if import (
 
 DEFAULT_OUTPUT_FOLDER = Path(__file__).resolve().parent / "output"
 
+# Exit codes (for batch files and scripts that run this tool)
+EXIT_RECIPE_FOUND = 0
+EXIT_INPUT_ERRORS = 1
+EXIT_NO_RECIPE = 2
+
 
 @dataclass
 class FullRun:
@@ -52,14 +60,19 @@ class FullRun:
 
 
 def format_price_ranges(table: pd.DataFrame, notes: list[str], scale_resolution_kg: float) -> str:
-    """The Price ranges sheet as console text."""
+    """The Price ranges sheet as console text, with each raw material's Note under the table."""
     lines = ["Price ranges (base case): today's recipe stays the same while one price moves within this band"]
     if table.empty:
         lines.append(f"  {notes[0]}")
-    else:
-        lines.append(sr.indented_table(table, ["Raw material", "Price basis", "Current price (Rs/t)",
-                                               "Unchanged from (Rs/t)", "Unchanged up to (Rs/t)"],
-                                       scale_resolution_kg))
+        return "\n".join(lines)
+    lines.append(sr.indented_table(table, ["Raw material", "Price basis", "Current price (Rs/t)",
+                                           "Unchanged from (Rs/t)", "Unchanged up to (Rs/t)"],
+                                   scale_resolution_kg))
+    # The Note column is too wide for the table; a blank end is explained here
+    material_notes = [f"    {row['Raw material']}: {row['Note']}" for _, row in table.iterrows() if row["Note"]]
+    if material_notes:
+        lines.append("  Notes:")
+        lines += material_notes
     return "\n".join(lines)
 
 
@@ -110,7 +123,16 @@ def run(
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Command-line entry point. Returns the exit code (0 = report written)."""
+    """Command-line entry point. Returns the exit code.
+
+    0  a recipe was found for the base case (the report is written);
+    1  input errors (nothing was solved), or the report could not be written;
+    2  no recipe for the base case: it is infeasible (or the solver found no
+       answer). The report, with the diagnosis, is still written.
+
+    Scenarios do not change the exit code: an infeasible scenario is
+    reported in its own sheet.
+    """
     parser = argparse.ArgumentParser(
         description="Least-cost blend optimizer: find the cheapest raw material mix that meets the specs.")
     parser.add_argument("product_file", help="product workbook (.xlsx)")
@@ -131,18 +153,18 @@ def main(argv: list[str] | None = None) -> int:
             for warning in error.warnings:
                 print(f"  - {warning}")
         print("Nothing was solved. Correct the workbook and run again.")
-        return 1
+        return EXIT_INPUT_ERRORS
     except PermissionError as error:
         print(f"Could not write the report: {error}")
         print("If the report is open in Excel, close it and run again.")
-        return 1
+        return EXIT_INPUT_ERRORS
 
     print()
     print(f"Report written to: {full_run.base.excel_path}")
     print(f"LP file:           {full_run.base.lp_path}")
     if full_run.scenarios:
         print(f"Scenarios:         {len(full_run.scenarios)} (see the Scenarios sheet)")
-    return 0
+    return EXIT_RECIPE_FOUND if full_run.base.result.is_optimal else EXIT_NO_RECIPE
 
 
 if __name__ == "__main__":

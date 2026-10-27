@@ -211,6 +211,36 @@ def test_price_ranges_sheet(write_example, tmp_path, capsys):
     assert any("0.01 wt %" in note for note in notes)
 
 
+def test_price_range_notes_are_printed(write_example, tmp_path, capsys):
+    full_run = run_module.run(write_example(examples.hand_worked_example()), output_path=tmp_path / "t1.xlsx")
+    printed = capsys.readouterr().out
+    # The same Note as in the Excel sheet, under the console table
+    assert "  Notes:\n    Lime: Recipe unchanged at every price tested (Rs 0 to 90,000)\n" in printed
+    assert "    Calcined alumina: No upper limit found up to Rs 300,000 (10x the current price)" in printed
+    assert "    Bauxite: No lower limit: unchanged down to Rs 0" in printed
+    lime = full_run.price_ranges.set_index("Raw material").loc["Lime", "Note"]
+    assert lime == "Recipe unchanged at every price tested (Rs 0 to 90,000)"
+
+
+def test_usage_changes_show_recipe_decimals(write_example, tmp_path):
+    example = _slag_with([("Dolomite fixed", "Usage Min", "Calcined dolomite", 4.05),
+                          ("Dolomite fixed", "Usage Max", "Calcined dolomite", 4.05),
+                          ("Looser P", "Spec Max", "P", 0.035)])
+    full_run = run_module.run(write_example(example), output_path=tmp_path / "changes.xlsx", show=False)
+    overview = openpyxl.load_workbook(full_run.base.excel_path)["Scenarios"]
+    headers = [cell.value for cell in overview[1]]
+    changes = {row[0]: row[headers.index("Changes")] for row in overview.iter_rows(min_row=2, values_only=True)}
+    # wt % of the blend: 2 decimals, like the Recipe sheet; a spec limit keeps its own decimals
+    assert changes["Dolomite fixed"] == ("Usage Min (effective) Calcined dolomite 0.00 -> 4.05; "
+                                         "Usage Max (effective) Calcined dolomite 100.00 -> 4.05")
+    assert changes["Looser P"] == "Spec Max P 0.0300 -> 0.0350"
+    # The same in the scenario sheet's Changes table
+    sheet = openpyxl.load_workbook(full_run.base.excel_path)["Scenario Dolomite fixed"]
+    usage_cells = [row for row in sheet.iter_rows() if row[0].value == "Usage Max (effective)"]
+    value_formats = {cell.number_format for cell in usage_cells[0][3:5]}
+    assert value_formats == {"0.00"}
+
+
 def test_price_ranges_sheet_for_an_infeasible_base(write_example, tmp_path):
     full_run = run_module.run(write_example(examples.hand_worked_example(al2o3_min=45)),
                               output_path=tmp_path / "inf.xlsx", show=False)
@@ -274,6 +304,21 @@ def test_main_explains_a_locked_report(write_example, tmp_path, capsys, monkeypa
     exit_code = run_module.main([str(write_example(examples.hand_worked_example())), "--quiet"])
     assert exit_code == 1
     assert "If the report is open in Excel, close it and run again." in capsys.readouterr().out
+
+
+def test_main_exit_code_2_when_the_base_case_is_infeasible(write_example, tmp_path, capsys):
+    product = write_example(examples.hand_worked_example(al2o3_min=45), "al2o3_45.xlsx")
+    exit_code = run_module.main([str(product), "--output", str(tmp_path / "inf.xlsx")])
+    printed = capsys.readouterr().out
+    assert exit_code == run_module.EXIT_NO_RECIPE == 2
+    assert "these limits cannot all be met together" in printed      # the diagnosis is still shown ...
+    assert (tmp_path / "inf.xlsx").is_file()                         # ... and the report still written
+
+
+def test_main_infeasible_scenario_does_not_change_the_exit_code(write_example, tmp_path, capsys):
+    product = write_example(examples.synthetic_slag_example(with_what_if=True))  # "No fluorspar" is infeasible
+    exit_code = run_module.main([str(product), "--output", str(tmp_path / "s.xlsx"), "--quiet"])
+    assert exit_code == run_module.EXIT_RECIPE_FOUND == 0
 
 
 def test_default_output_path():
